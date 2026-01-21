@@ -24,11 +24,19 @@ void VRAnalyzer::convexMerge(const AnalysisStore& other) {
 }
 
 std::shared_ptr<CodeAnalyzer> VRAnalyzer::newCodeAnalyzer(CodeInterpreter& CI) {
-  return std::make_shared<VRAnalyzer>(std::static_ptr_cast<VRALogger>(CI.getGlobalStore()->getLogger()), CI);
+  return std::make_shared<VRAnalyzer>(std::static_ptr_cast<VRALogger>(CI.getGlobalStore()->getLogger()), &CI);
 }
 
 std::shared_ptr<AnalysisStore> VRAnalyzer::newFunctionStore(CodeInterpreter& CI) {
   return std::make_shared<VRAFunctionStore>(std::static_ptr_cast<VRALogger>(CI.getGlobalStore()->getLogger()));
+}
+
+std::shared_ptr<CodeAnalyzer> VRAnalyzer::newInstructionAnalyzer(ModuleInterpreter& MI) {
+  return std::make_shared<VRAnalyzer>(std::static_ptr_cast<VRALogger>(MI.getGlobalStore()->getLogger()), &MI);
+}
+
+std::shared_ptr<AnalysisStore> VRAnalyzer::newFnStore(ModuleInterpreter& MI) {
+  return std::make_shared<VRAFunctionStore>(std::static_ptr_cast<VRALogger>(MI.getGlobalStore()->getLogger()));
 }
 
 std::shared_ptr<CodeAnalyzer> VRAnalyzer::clone() { return std::make_shared<VRAnalyzer>(*this); }
@@ -337,7 +345,11 @@ void VRAnalyzer::handleReturn(const Instruction* ret) {
   if (const Value* ret_val = ret_i->getReturnValue()) {
     std::shared_ptr<ValueInfo> range = getNode(ret_val);
 
-    std::shared_ptr<VRAFunctionStore> FStore = std::static_ptr_cast<VRAFunctionStore>(CodeInt.getFunctionStore());
+    std::shared_ptr<VRAFunctionStore> FStore;
+    if (CodeInt)
+      FStore = std::static_ptr_cast<VRAFunctionStore>(CodeInt->getFunctionStore());
+    else
+      FStore = std::static_ptr_cast<VRAFunctionStore>(ModInt->getFunctionStore());
     FStore->setRetVal(range);
 
     LLVM_DEBUG(Logger->logRangeln(range));
@@ -348,7 +360,7 @@ void VRAnalyzer::handleReturn(const Instruction* ret) {
 }
 
 void VRAnalyzer::handleAllocaInstr(Instruction* I) {
-  AllocaInst* allocaInst = cast<AllocaInst>(I);
+  auto* allocaInst = cast<AllocaInst>(I);
   LLVM_DEBUG(Logger->logInstruction(I));
   const auto inputValueInfo = getGlobalStore()->getUserInput(I);
   auto* allocatedType = TaffoInfo::getInstance().getOrCreateTransparentType(*allocaInst);
@@ -396,9 +408,15 @@ void VRAnalyzer::handleLoadInstr(Instruction* I) {
   std::shared_ptr<ValueInfo> Loaded = loadNode(getNode(PointerOp));
 
   if (std::shared_ptr<ScalarInfo> Scalar = std::dynamic_ptr_cast_or_null<ScalarInfo>(Loaded)) {
-    auto& FAM =
-      CodeInt.getMAM().getResult<FunctionAnalysisManagerModuleProxy>(*I->getFunction()->getParent()).getManager();
-    auto* SSARes = &(FAM.getResult<MemorySSAAnalysis>(*I->getFunction()));
+    llvm::MemorySSAAnalysis::Result *SSARes;
+    if (CodeInt) {
+      auto& FAM = CodeInt->getMAM().getResult<FunctionAnalysisManagerModuleProxy>(*I->getFunction()->getParent()).getManager();
+      SSARes = &(FAM.getResult<MemorySSAAnalysis>(*I->getFunction()));
+    } else {
+      auto& FAM = ModInt->getMAM().getResult<FunctionAnalysisManagerModuleProxy>(*I->getFunction()->getParent()).getManager();
+      SSARes = &(FAM.getResult<MemorySSAAnalysis>(*I->getFunction()));
+    }
+    
     MemorySSA& memssa = SSARes->getMSSA();
     MemSSAUtils memssa_utils(memssa);
     SmallVectorImpl<Value*>& def_vals = memssa_utils.getDefiningValues(Load);
@@ -567,7 +585,9 @@ void VRAnalyzer::setNode(const Value* V, std::shared_ptr<ValueInfo> Node) {
     return;
   }
   if (isa<Argument>(V)) {
-    std::shared_ptr<VRAFunctionStore> FStore = std::static_ptr_cast<VRAFunctionStore>(CodeInt.getFunctionStore());
+    std::shared_ptr<VRAFunctionStore> FStore;
+    if (CodeInt) FStore = std::static_ptr_cast<VRAFunctionStore>(CodeInt->getFunctionStore());
+    else FStore = std::static_ptr_cast<VRAFunctionStore>(ModInt->getFunctionStore());
     FStore->setNode(V, Node);
     return;
   }

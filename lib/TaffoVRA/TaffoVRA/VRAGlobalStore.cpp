@@ -3,6 +3,7 @@
 #include "TaffoInfo/TaffoInfo.hpp"
 #include "Types/TypeUtils.hpp"
 #include "VRAGlobalStore.hpp"
+#include "ModuleInterpreter.hpp"
 #include "VRAnalyzer.hpp"
 
 #include <llvm/IR/Operator.h>
@@ -24,11 +25,19 @@ void VRAGlobalStore::convexMerge(const AnalysisStore& other) {
 }
 
 std::shared_ptr<CodeAnalyzer> VRAGlobalStore::newCodeAnalyzer(CodeInterpreter& CI) {
-  return std::make_shared<VRAnalyzer>(std::static_ptr_cast<VRALogger>(CI.getGlobalStore()->getLogger()), CI);
+  return std::make_shared<VRAnalyzer>(std::static_ptr_cast<VRALogger>(CI.getGlobalStore()->getLogger()), &CI);
 }
 
 std::shared_ptr<AnalysisStore> VRAGlobalStore::newFunctionStore(CodeInterpreter& CI) {
   return std::make_shared<VRAFunctionStore>(std::static_ptr_cast<VRALogger>(CI.getGlobalStore()->getLogger()));
+}
+
+std::shared_ptr<CodeAnalyzer> VRAGlobalStore::newInstructionAnalyzer(ModuleInterpreter& MI) {
+  return std::make_shared<VRAnalyzer>(std::static_ptr_cast<VRALogger>(MI.getGlobalStore()->getLogger()), &MI);
+}
+
+std::shared_ptr<AnalysisStore> VRAGlobalStore::newFnStore(ModuleInterpreter& MI) {
+  return std::make_shared<VRAFunctionStore>(std::static_ptr_cast<VRALogger>(MI.getGlobalStore()->getLogger()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,6 +10,7 @@ namespace taffo {
 
 class CodeInterpreter;
 class CodeAnalyzer;
+class ModuleInterpreter;
 
 class CILogger {
 public:
@@ -37,6 +38,10 @@ public:
   virtual void convexMerge(const AnalysisStore& Other) = 0;
   virtual std::shared_ptr<CodeAnalyzer> newCodeAnalyzer(CodeInterpreter& CI) = 0;
   virtual std::shared_ptr<AnalysisStore> newFunctionStore(CodeInterpreter& CI) = 0;
+
+  virtual std::shared_ptr<CodeAnalyzer> newInstructionAnalyzer(ModuleInterpreter& FI) = 0;
+  virtual std::shared_ptr<AnalysisStore> newFnStore(ModuleInterpreter& CI) = 0;
+
   virtual bool hasValue(const llvm::Value* V) const = 0;
   virtual std::shared_ptr<CILogger> getLogger() const = 0;
   virtual ~AnalysisStore() = default;
@@ -60,8 +65,7 @@ class CodeAnalyzer : public AnalysisStore {
 public:
   virtual std::shared_ptr<CodeAnalyzer> clone() = 0;
   virtual void analyzeInstruction(llvm::Instruction* I) = 0;
-  virtual void
-  setPathLocalInfo(std::shared_ptr<CodeAnalyzer> SuccAnalyzer, llvm::Instruction* TermInstr, unsigned SuccIdx) = 0;
+  virtual void setPathLocalInfo(std::shared_ptr<CodeAnalyzer> SuccAnalyzer, llvm::Instruction* TermInstr, unsigned SuccIdx) = 0;
   virtual bool requiresInterpretation(llvm::Instruction* I) const = 0;
   virtual void prepareForCall(llvm::Instruction* I, std::shared_ptr<AnalysisStore> FunctionStore) = 0;
   virtual void returnFromCall(llvm::Instruction* I, std::shared_ptr<AnalysisStore> FunctionStore) = 0;
@@ -76,8 +80,8 @@ protected:
 };
 
 struct FunctionScope {
-  FunctionScope(std::shared_ptr<AnalysisStore> FS)
-  : FunctionStore(FS) {}
+  FunctionScope() {}
+  FunctionScope(std::shared_ptr<AnalysisStore> FS) : FunctionStore(FS) {}
 
   std::shared_ptr<AnalysisStore> FunctionStore;
   llvm::DenseMap<llvm::BasicBlock*, std::shared_ptr<CodeAnalyzer>> BBAnalyzers;

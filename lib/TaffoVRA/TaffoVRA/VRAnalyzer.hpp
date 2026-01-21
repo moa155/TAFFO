@@ -6,6 +6,8 @@
 #include "VRALogger.hpp"
 #include "VRAStore.hpp"
 
+#include "ModuleInterpreter.hpp"
+
 #define DEBUG_TYPE "taffo-vra"
 
 namespace taffo {
@@ -13,12 +15,18 @@ namespace taffo {
 class VRAnalyzer : protected VRAStore,
                    public CodeAnalyzer {
 public:
-  VRAnalyzer(std::shared_ptr<VRALogger> VRAL, CodeInterpreter& CI)
-  : VRAStore(VRASK_VRAnalyzer, VRAL), CodeAnalyzer(ASK_VRAnalyzer), CodeInt(CI) {}
+  VRAnalyzer(std::shared_ptr<VRALogger> VRAL, CodeInterpreter* CI)
+  : VRAStore(VRASK_VRAnalyzer, VRAL), CodeAnalyzer(ASK_VRAnalyzer), CodeInt(CI), ModInt(nullptr) {}
+  VRAnalyzer(std::shared_ptr<VRALogger> VRAL, ModuleInterpreter* MI)
+  : VRAStore(VRASK_VRAnalyzer, VRAL), CodeAnalyzer(ASK_VRAnalyzer), CodeInt(nullptr), ModInt(MI) {}
+
+  using VRAStore::saveValueRange;
 
   void convexMerge(const AnalysisStore& other) override;
   std::shared_ptr<CodeAnalyzer> newCodeAnalyzer(CodeInterpreter& CI) override;
   std::shared_ptr<AnalysisStore> newFunctionStore(CodeInterpreter& CI) override;
+  std::shared_ptr<CodeAnalyzer> newInstructionAnalyzer(ModuleInterpreter& MI) override;
+  std::shared_ptr<AnalysisStore> newFnStore(ModuleInterpreter& MI) override;
 
   bool hasValue(const llvm::Value* V) const override {
     auto It = DerivedRanges.find(V);
@@ -78,11 +86,11 @@ private:
 
   // Interface with CodeInterpreter
   std::shared_ptr<VRAGlobalStore> getGlobalStore() const {
-    return std::static_ptr_cast<VRAGlobalStore>(CodeInt.getGlobalStore());
+    return CodeInt ? std::static_ptr_cast<VRAGlobalStore>(CodeInt->getGlobalStore()) : std::static_ptr_cast<VRAGlobalStore>(ModInt->getGlobalStore());
   }
 
   std::shared_ptr<VRAStore> getAnalysisStoreForValue(const llvm::Value* V) const {
-    std::shared_ptr<AnalysisStore> AStore = CodeInt.getStoreForValue(V);
+    std::shared_ptr<AnalysisStore> AStore = CodeInt ? CodeInt->getStoreForValue(V) : ModInt->getStoreForValue(V);
     if (!AStore)
       return nullptr;
 
@@ -99,7 +107,8 @@ private:
   // Logging
   void logRangeln(const llvm::Value* v);
 
-  CodeInterpreter& CodeInt;
+  CodeInterpreter* CodeInt;
+  ModuleInterpreter* ModInt;
 };
 
 } // end namespace taffo
