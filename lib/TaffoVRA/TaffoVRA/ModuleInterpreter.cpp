@@ -527,12 +527,12 @@ void ModuleInterpreter::resolveCall(std::shared_ptr<CodeAnalyzer> CurAnalyzer, l
       FunctionStore = GlobalStore->newFnStore(*this);
 
     CurAnalyzer->prepareForCallPropagation(I, FunctionStore, isRangeChanged, FNs[F]);
-    if (isRangeChanged) { LLVM_DEBUG(tda::log() << " (GG) ");
+    if (isRangeChanged) {
         propagateFunction(F);
     } else {
         LLVM_DEBUG(tda::log() << "No arguments are widen, can reuse past range\n");
     }
-LLVM_DEBUG(tda::log() << " (HH) ");
+    LLVM_DEBUG(tda::log() << "\nPropagation of function "<<F->getName()<<" ended, previous context restored\n\n");
     CurAnalyzer->returnFromCallPropagation(I, FunctionStore, isRangeChanged, FNs[F]);
 }
 
@@ -949,11 +949,13 @@ bool ModuleInterpreter::isSolvableDependenceTreeBackwark(const llvm::Value *V, l
                     if (VLI.isInvariant(ArgV)) continue;
                     if (VFI.RRs.count(ArgV) && !VFI.RRs[ArgV].lastRange)
                         atLeastOneUnsolvedArg = true;
+                    
                 }
                 if (atLeastOneUnsolvedArg) {
                     VRI.depsOnFn.push_back(CB->getCalledFunction());
                     return false;
                 }
+                
                 VRI.depsOnFn.clear();
             }
         }
@@ -1135,10 +1137,16 @@ bool ModuleInterpreter::isInitRecurrence(VRARecurrenceInfo& VRI) {
     // LLVM_DEBUG(tda::log() << "-- creazione copia temp di analyzer di "<<VLI.bbFlow.front()->getName()<<" da originale\n");
     // VFS.BBAnalyzers[VLI.bbFlow.front()] = std::static_pointer_cast<VRAnalyzer>(VFI.scope.BBAnalyzers[VLI.bbFlow.front()])->deepClone();
 
-    
-    if (const auto *Store = llvm::dyn_cast<llvm::StoreInst>(VRI.root)) {
+    /**
+     * PRENDERE IL PAST RANGE DAL GLOBAL CON LE ANNOTAZIONI, IN MODO DA POTER FARE NARROWING
+     */
+    auto GStore = std::static_pointer_cast<VRAGlobalStore>(GlobalStore);
+    auto OldRange = GStore->fetchRange(VRI.root);
+    LLVM_DEBUG(tda::log() << " il vecchio range era " << OldRange->toString() << " -");
 
-        if (!isSolvableDependenceTree(Store->getValueOperand(), L, VRI)) {
+    if (const auto *Store = llvm::dyn_cast<llvm::StoreInst>(VRI.root)) {
+        
+        if (!isSolvableDependenceTreeBackwark(Store->getValueOperand(), L, VRI)) {
             LLVM_DEBUG(tda::log() << "\t\t\tRR is not solvale yet: it depends on other unsolved recurrences\n");
             return true;
         }
@@ -1146,7 +1154,7 @@ bool ModuleInterpreter::isInitRecurrence(VRARecurrenceInfo& VRI) {
         auto SFV = std::static_pointer_cast<VRAnalyzer>(getStoreForValue(Store->getValueOperand()));
         if (!SFV) return true;
         
-        std::shared_ptr<RangedRecurrence> RR = SFV->buildInitRecurrence(Store);
+        std::shared_ptr<RangedRecurrence> RR = SFV->buildInitRecurrence(Store, OldRange);
         if (RR) {
             VRI.RR = RR;
             solvedRR.push_back(VRI.root);

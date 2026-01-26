@@ -14,6 +14,7 @@ class ModuleInterpreter;
 class VRARecurrenceInfo;
 class VRAFunctionInfo;
 class RangedRecurrence;
+class Range;
 
 class CILogger {
 public:
@@ -81,7 +82,7 @@ public:
 
   virtual std::shared_ptr<RangedRecurrence> buildAffinePHIRecurrence(const llvm::PHINode *phi) = 0;
   virtual std::shared_ptr<RangedRecurrence> buildAffineStoreRecurrence(VRARecurrenceInfo VRI, const llvm::StoreInst*phi) = 0;
-  virtual std::shared_ptr<RangedRecurrence> buildInitRecurrence(const llvm::StoreInst *store) = 0;
+  virtual std::shared_ptr<RangedRecurrence> buildInitRecurrence(const llvm::StoreInst *store, std::shared_ptr<taffo::Range> OldRange) = 0;
   virtual std::shared_ptr<RangedRecurrence> buildUnknownRecurrence(const llvm::Value *V) = 0;
 
   static bool classof(const AnalysisStore* AS) {

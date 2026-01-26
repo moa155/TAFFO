@@ -3,6 +3,7 @@
 #include "VRAGlobalStore.hpp"
 #include "VRAnalyzer.hpp"
 #include "ModuleInterpreter.hpp"
+#include "ValueRangeAnalysisPass.hpp"
 
 #define DEBUG_TYPE "taffo-vra"
 
@@ -39,9 +40,14 @@ void VRAFunctionStore::setRetVal(std::shared_ptr<ValueInfo> RetVal) {
     return;
 
   if (std::shared_ptr<ValueInfoWithRange> RetRange = std::dynamic_ptr_cast<ValueInfoWithRange>(RetVal)) {
-    std::shared_ptr<ValueInfoWithRange> ReturnRange = std::dynamic_ptr_cast_or_null<ValueInfoWithRange>(ReturnValue);
-    ReturnValue = getUnionRange(ReturnRange, RetRange);
-    auto s = std::dynamic_ptr_cast<ScalarInfo>(ReturnValue);
+
+    if (UseOldVRA) {
+      std::shared_ptr<ValueInfoWithRange> ReturnRange = std::dynamic_ptr_cast_or_null<ValueInfoWithRange>(ReturnValue);
+      ReturnValue = getUnionRange(ReturnRange, RetRange);
+      auto s = std::dynamic_ptr_cast<ScalarInfo>(ReturnValue);
+    } else {
+      ReturnValue = RetRange;
+    }
   }
   else {
     ReturnValue = RetVal;
