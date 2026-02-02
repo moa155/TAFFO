@@ -162,6 +162,10 @@ bool AnnotationParser::parseScalar(std::shared_ptr<ValueInfo>& thisValueInfo) {
       }
       if (!expectInteger(frac))
         return false;
+      if (total < frac) {
+        error = "Fixed point data type must have total bits greater than or equal to fractional bits";
+        return false;
+      }
       if (!expect(")"))
         return false;
       scalarInfo->numericType = std::make_shared<FixedPointInfo>(isSigned, total, frac);
