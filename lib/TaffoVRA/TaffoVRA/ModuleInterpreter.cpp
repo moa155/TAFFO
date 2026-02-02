@@ -164,10 +164,13 @@ static std::vector<const llvm::Value *> getInductionFromLoad(const llvm::LoadIns
     unsigned Pos = 0;
     for (auto It = GEP->idx_begin(), E = GEP->idx_end(); It != E && DimIdx.size() < 2; ++It, ++Pos) {
       if (Pos == 0) {
-        // For flat pointers (e.g., double* or linearized buffers) the first
-        // index is the only meaningful dimension. Keep skipping for true
-        // aggregates so we don't count the leading zero of array GEPs.
-        if (DimIdx.size() < 2 && !llvm::isa<llvm::ArrayType>(Ty) && !llvm::isa<llvm::StructType>(Ty))
+        
+        bool IsZeroIdx = false;
+        if (auto *CI = llvm::dyn_cast<llvm::ConstantInt>(It->get()))
+          IsZeroIdx = CI->isZero();
+
+        if (DimIdx.size() < 2 &&
+            (!llvm::isa<llvm::ArrayType>(Ty) && !llvm::isa<llvm::StructType>(Ty) || !IsZeroIdx))
           DimIdx.push_back(It->get());
 
         // Still advance through nested element types when available.

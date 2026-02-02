@@ -408,7 +408,7 @@ void VRAnalyzer::returnFromCallPropagation(Instruction* I, std::shared_ptr<Analy
 
     } else {
       saveValueRange(I, VFI.lastRange);
-      LLVM_DEBUG(tda::log() <<" retreieved past range "<<VFI.lastRange->toString());
+      LLVM_DEBUG(tda::log() <<" retrieved past range "<<VFI.lastRange->toString());
     }
     LLVM_DEBUG(logRangeln(I));
   }
@@ -1098,6 +1098,10 @@ std::shared_ptr<taffo::RangedRecurrence> VRAnalyzer::buildAffineFlattingRecurren
   auto StartRange = getRange(getNode(VRI.loadJunction));
 
   auto StepRange = getRange(getNode(VRI.loadHigherDim));
+
+  LLVM_DEBUG(tda::log() << " LJ = " << VRI.loadJunction);
+  LLVM_DEBUG(tda::log() << " HD = " << VRI.loadHigherDim);
+
   StepRange = handleSub(StepRange, StartRange);
 
   return std::make_shared<AffineRangedRecurrence>(std::move(StartRange), std::move(StepRange));
