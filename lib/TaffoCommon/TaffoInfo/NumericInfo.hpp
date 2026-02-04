@@ -35,6 +35,9 @@ class FixedPointInfo : public NumericTypeInfo {
 public:
   static bool classof(const NumericTypeInfo* T) { return T->getKind() == K_FixedPoint; }
 
+  FixedPointInfo(bool isSigned, unsigned bits, unsigned fractionalBits, bool isUserSpecified)
+  : sign(isSigned), bits(bits), fractionalBits(fractionalBits), forced(isUserSpecified) {}
+
   FixedPointInfo(bool isSigned, unsigned bits, unsigned fractionalBits)
   : sign(isSigned), bits(bits), fractionalBits(fractionalBits) {}
 
@@ -46,6 +49,7 @@ public:
   unsigned getBits() const { return bits; }
   unsigned getFractionalBits() const { return fractionalBits; }
   NumericTypeKind getKind() const override { return K_FixedPoint; }
+  bool isForced() const { return forced; }
 
   bool operator==(const NumericTypeInfo& other) const override;
 
@@ -58,6 +62,7 @@ private:
   bool sign;
   unsigned bits;
   unsigned fractionalBits;
+  bool forced = false;
 };
 
 class FloatingPointInfo : public NumericTypeInfo {

@@ -168,7 +168,7 @@ bool AnnotationParser::parseScalar(std::shared_ptr<ValueInfo>& thisValueInfo) {
       }
       if (!expect(")"))
         return false;
-      scalarInfo->numericType = std::make_shared<FixedPointInfo>(isSigned, total, frac);
+      scalarInfo->numericType = std::make_shared<FixedPointInfo>(isSigned, total, frac, true);
     }
     else if (peek("error")) {
       scalarInfo->error = std::make_shared<double>(0);
