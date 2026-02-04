@@ -9,14 +9,14 @@
 
 using namespace taffo;
 
-void VRAFunctionStore::convexMerge(const AnalysisStore& Other) {
+void VRAFunctionStore::convexMerge(const AnalysisStore& Other, bool isFallback) {
   // Since llvm::dyn_cast<T>() does not do cross-casting, we must do this:
   if (llvm::isa<VRAnalyzer>(Other))
-    VRAStore::convexMerge(llvm::cast<VRAStore>(llvm::cast<VRAnalyzer>(Other)));
+    VRAStore::convexMerge(llvm::cast<VRAStore>(llvm::cast<VRAnalyzer>(Other)), isFallback);
   else if (llvm::isa<VRAGlobalStore>(Other))
-    VRAStore::convexMerge(llvm::cast<VRAStore>(llvm::cast<VRAGlobalStore>(Other)));
+    VRAStore::convexMerge(llvm::cast<VRAStore>(llvm::cast<VRAGlobalStore>(Other)), isFallback);
   else
-    VRAStore::convexMerge(llvm::cast<VRAStore>(llvm::cast<VRAFunctionStore>(Other)));
+    VRAStore::convexMerge(llvm::cast<VRAStore>(llvm::cast<VRAFunctionStore>(Other)), isFallback);
 }
 
 std::shared_ptr<CodeAnalyzer> VRAFunctionStore::newCodeAnalyzer(CodeInterpreter& CI) {

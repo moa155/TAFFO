@@ -14,7 +14,7 @@ public:
   VRAFunctionStore(std::shared_ptr<VRALogger> VRAL)
   : VRAStore(VRASK_VRAFunctionStore, VRAL), AnalysisStore(ASK_VRAFunctionStore) {}
 
-  void convexMerge(const AnalysisStore& Other) override;
+  void convexMerge(const AnalysisStore& Other, bool isFallback = false) override;
   std::shared_ptr<CodeAnalyzer> newCodeAnalyzer(CodeInterpreter& CI) override;
   std::shared_ptr<AnalysisStore> newFunctionStore(CodeInterpreter& CI) override;
 

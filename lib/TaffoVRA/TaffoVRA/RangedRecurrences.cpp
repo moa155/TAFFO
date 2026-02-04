@@ -78,15 +78,6 @@ std::shared_ptr<Range> AffineRangedRecurrence::at(std::uint64_t i) const {
   return handleAdd(Start, term);
 }
 
-std::shared_ptr<Range> AffineRangedRecurrence::envelopeUpTo(std::uint64_t N) const {
-  const double A = Start->min, B = Start->max;
-  const double S = Step->min,  T = Step->max;
-  const double Nd = static_cast<double>(N);
-  const double lo = std::min(A + std::min(0.0, Nd*S), A + std::min(0.0, Nd*T));
-  const double hi = std::max(B + std::max(0.0, Nd*S), B + std::max(0.0, Nd*T));
-  return std::make_shared<Range>(lo, hi);
-}
-
 std::string AffineRangedRecurrence::toString() const {
   std::string s; llvm::raw_string_ostream os(s);
   if (Step && Step->isTop()) {
@@ -94,6 +85,182 @@ std::string AffineRangedRecurrence::toString() const {
   } else {
     os << "affine(start = " << rangeToString(Start)
        << ", step = " << rangeToString(Step) << ")";
+  }
+  return os.str();
+}
+
+// ================= Affine flattened =======================
+
+std::shared_ptr<Range> AffineFlattinedRangedRecurrence::at(std::uint64_t i) const {
+  if (!Start) return Range::Top().clone();
+  if (i == 0) return std::make_shared<Range>(*Start);
+  auto term = RangedRecurrence::scaleByUInt(Step, i);
+  return handleAdd(Start, term);
+}
+
+std::string AffineFlattinedRangedRecurrence::toString() const {
+  std::string s; llvm::raw_string_ostream os(s);
+  if (Step && Step->isTop()) {
+    os << "unknown(start = " << rangeToString(Start) << ", end = TOP)";
+  } else {
+    os << "affine_flattened(start = " << rangeToString(Start)
+       << ", step = " << rangeToString(Step) << ")";
+  }
+  return os.str();
+}
+
+// ================= Affine delta =======================
+
+std::shared_ptr<Range> AffineDeltaRangedRecurrence::at(std::uint64_t i) const {
+  if (!Start) return Range::Top().clone();
+  if (i == 0) return std::make_shared<Range>(*Start);
+
+  if (!Step || !InnerAffine)
+    return Range::Top().clone();
+
+  auto stepIn = InnerAffine->getStep();
+  if (!stepIn)
+    return Range::Top().clone();
+
+  std::shared_ptr<Range> innerBlock;
+  if (InnerTC == 0) {
+    innerBlock = Range::Point(llvm::APFloat(0.0)).clone();
+  } else {
+    innerBlock = RangedRecurrence::scaleByUInt(stepIn, InnerTC);
+    if (!innerBlock)
+      return Range::Top().clone();
+  }
+
+  auto perOuter = handleAdd(innerBlock, Step);
+  if (!perOuter)
+    return Range::Top().clone();
+
+  auto totalDelta = RangedRecurrence::scaleByUInt(perOuter, i);
+  if (!totalDelta)
+    return Range::Top().clone();
+
+  auto res = handleAdd(Start, totalDelta);
+  return res ? res : Range::Top().clone();
+}
+
+std::string AffineDeltaRangedRecurrence::toString() const {
+  std::string s; llvm::raw_string_ostream os(s);
+  auto stepIn = InnerAffine ? InnerAffine->getStep() : nullptr;
+  if (Step && Step->isTop()) {
+    os << "unknown(start = " << rangeToString(Start) << ", end = TOP)";
+  } else {
+    os << "affine_delta(start = " << rangeToString(Start)
+       << ", step_out = " << rangeToString(Step)
+       << ", step_in = " << rangeToString(stepIn)
+       << ", inner_tc = " << InnerTC << ")";
+  }
+  return os.str();
+}
+
+// ================= Affine crossing =======================
+
+std::shared_ptr<Range> AffineCrossingRangedRecurrence::at(std::uint64_t i) const {
+  if (!Start) return Range::Top().clone();
+  if (i == 0) return std::make_shared<Range>(*Start);
+  auto term = RangedRecurrence::scaleByUInt(Step, i);
+  return handleAdd(Start, term);
+}
+
+std::string AffineCrossingRangedRecurrence::toString() const {
+  std::string s; llvm::raw_string_ostream os(s);
+  if (Step && Step->isTop()) {
+    os << "unknown(start = " << rangeToString(Start) << ", end = TOP)";
+  } else {
+    os << "affine_crossing(start = " << rangeToString(Start)
+       << ", step = " << rangeToString(Step) << ")";
+  }
+  return os.str();
+}
+
+// ================= Geometric flattened ====================
+
+std::shared_ptr<Range> GeometricFlattenedRangedRecurrence::at(std::uint64_t i) const {
+  if (!Start) return Range::Top().clone();
+  if (!Ratio) return Range::Top().clone();
+  auto powIv = GeometricRangedRecurrence::powerInterval(i, Ratio->min, Ratio->max);
+  auto out = handleMul(Start, powIv);
+  if (out) taffo::outward(*out);
+  return out ? out : Range::Top().clone();
+}
+
+std::string GeometricFlattenedRangedRecurrence::toString() const {
+  std::string s; llvm::raw_string_ostream os(s);
+  if (Ratio && Ratio->isTop()) {
+    os << "unknown(start = " << rangeToString(Start) << ", end = TOP)";
+  } else {
+    os << "geometric_flattened(start = " << rangeToString(Start)
+       << ", ratio = " << rangeToString(Ratio) << ")";
+  }
+  return os.str();
+}
+
+// ================= Geometric delta ====================
+
+std::shared_ptr<Range> GeometricDeltaRangedRecurrence::at(std::uint64_t i) const {
+  if (!Start) return Range::Top().clone();
+  if (i == 0) return std::make_shared<Range>(*Start);
+  if (!Ratio || !InnerGeom) return Range::Top().clone();
+
+  auto innerRatio = InnerGeom->getRatio();
+  if (!innerRatio) return Range::Top().clone();
+
+  std::shared_ptr<Range> innerBlock;
+  if (InnerTC == 0) {
+    innerBlock = Range::Point(llvm::APFloat(1.0)).clone();
+  } else {
+    innerBlock = GeometricRangedRecurrence::powerInterval(InnerTC, innerRatio->min, innerRatio->max);
+  }
+  if (!innerBlock) return Range::Top().clone();
+
+  auto perOuter = handleMul(innerBlock, Ratio);
+  if (!perOuter) return Range::Top().clone();
+
+  auto totalPow = GeometricRangedRecurrence::powerInterval(i, perOuter->min, perOuter->max);
+  if (!totalPow) return Range::Top().clone();
+
+  auto res = handleMul(Start, totalPow);
+  if (res) taffo::outward(*res);
+  return res ? res : Range::Top().clone();
+}
+
+std::string GeometricDeltaRangedRecurrence::toString() const {
+  std::string s; llvm::raw_string_ostream os(s);
+  auto innerRatio = InnerGeom ? InnerGeom->getRatio() : nullptr;
+  if (Ratio && Ratio->isTop()) {
+    os << "unknown(start = " << rangeToString(Start) << ", end = TOP)";
+  } else {
+    os << "geometric_delta(start = " << rangeToString(Start)
+       << ", ratio_out = " << rangeToString(Ratio)
+       << ", ratio_in = " << rangeToString(innerRatio)
+       << ", inner_tc = " << InnerTC << ")";
+  }
+  return os.str();
+}
+
+// ================= Geometric crossing ====================
+
+std::shared_ptr<Range> GeometricCrossingRangedRecurrence::at(std::uint64_t i) const {
+  if (!Start) return Range::Top().clone();
+  if (!Ratio) return Range::Top().clone();
+  if (i == 0) return std::make_shared<Range>(*Start);
+  auto powIv = GeometricRangedRecurrence::powerInterval(i, Ratio->min, Ratio->max);
+  auto out = handleMul(Start, powIv);
+  if (out) taffo::outward(*out);
+  return out ? out : Range::Top().clone();
+}
+
+std::string GeometricCrossingRangedRecurrence::toString() const {
+  std::string s; llvm::raw_string_ostream os(s);
+  if (Ratio && Ratio->isTop()) {
+    os << "unknown(start = " << rangeToString(Start) << ", end = TOP)";
+  } else {
+    os << "geometric_crossing(start = " << rangeToString(Start)
+       << ", ratio = " << rangeToString(Ratio) << ")";
   }
   return os.str();
 }

@@ -322,8 +322,9 @@ void ModuleInterpreter::interpret() {
 
     inspect();
 
+    remainingUnsolvedRR = countPotentialRecurrences();
     LLVM_DEBUG(tda::log() << "\n\n------------------------------------------------------------------------------\n");
-    LLVM_DEBUG(tda::log() << "inspection completed: found " << countPotentialRecurrences() << " potential detectable recurrences.\n");
+    LLVM_DEBUG(tda::log() << "inspection completed: found " << remainingUnsolvedRR << " potential detectable recurrences.\n");
     LLVM_DEBUG(tda::log() <<   "------------------------------------------------------------------------------\n\n");
 
     resolve();
@@ -336,8 +337,9 @@ void ModuleInterpreter::resolve() {
 
         assemble();
 
+        remainingUnsolvedRR -= solvedRR.size();
         LLVM_DEBUG(tda::log() << "\n\n------------------------------------------------------------------------------\n");
-        LLVM_DEBUG(tda::log() << "assembling iter "<<iteration<<" completed: solved " << solvedRR.size() << " recurrences.\n");
+        LLVM_DEBUG(tda::log() << "assembling iter "<<iteration<<" completed: solved " << solvedRR.size() << " recurrences, remainings " << remainingUnsolvedRR << ".\n");
         LLVM_DEBUG(tda::log() <<   "------------------------------------------------------------------------------\n\n");
 
         if (existAtLeastOneLoopWithoutTripCount()) {
@@ -355,7 +357,7 @@ void ModuleInterpreter::resolve() {
         LLVM_DEBUG(tda::log() <<   "------------------------------------------------------------------------------\n\n");
 
         ++iteration;
-        if (MaxPropagation && iteration > MaxPropagation) {
+        if (MaxPropagation && iteration > MaxPropagation || solvedRR.size() == 0 && remainingUnsolvedRR > 0) {
             LLVM_DEBUG(tda::log() << "Propagation interrupted: after " << MaxPropagation << " iteration(s) no fixed point reached: widening falling back remaining RR and last iteration\n");
             fallback();
             propagate();
@@ -372,9 +374,9 @@ void ModuleInterpreter::resolve() {
     // final convex into the globals for all functions and blocks
     for (auto [F,VFI] : FNs) {
         for (auto [_, BBA] : VFI.scope.BBAnalyzers) {
-            GlobalStore->convexMerge(*BBA);
+            GlobalStore->convexMerge(*BBA, remainingUnsolvedRR > 0);
         }
-        GlobalStore->convexMerge(*VFI.scope.FunctionStore);
+        GlobalStore->convexMerge(*VFI.scope.FunctionStore, remainingUnsolvedRR > 0);
     }
 }
 
@@ -1851,11 +1853,13 @@ void ModuleInterpreter::walk(llvm::Loop* L) {
                 }
 
             } else if (CurAnalyzer->requiresInterpretation(&I)) {
-                // caso call: check se gli argomenti si sono espansi o serve nuova propagazione
 
                 resolveCall(CurAnalyzer, &I, isRangeChanged);
+
             } else {
+
                 CurAnalyzer->analyzeInstruction(&I, isRangeChanged);
+                
             }
 
             if (isRangeChanged) {
@@ -1892,6 +1896,8 @@ void ModuleInterpreter::propagate() {
 
 void ModuleInterpreter::fallback() {
 
+    llvm::SmallVector<const Value*> memFalls;
+
     for (auto &Entry : FNs) {
         llvm::Function *F = Entry.first;
         auto &VFI = Entry.second;
@@ -1909,6 +1915,11 @@ void ModuleInterpreter::fallback() {
 
             if (VRI.RR) continue;   //already solved
 
+            if (auto store = dyn_cast<StoreInst>(root)) {
+                memFalls.push_back(getBaseMemoryObject(store->getPointerOperand()));
+                LLVM_DEBUG(tda::log() << " STORE FALLING FOR OPERAND " << printInstrName(store) << "\n");
+            }
+
             VRI.depsOnFn.clear();
             VRI.depsOnFn.clear();
             VRI.RR = std::make_shared<FakeRangedRecurrence>(nullptr, std::move(Range::Top().clone()));
@@ -1917,6 +1928,25 @@ void ModuleInterpreter::fallback() {
             solvedRR.push_back(VRI.root);
 
             LLVM_DEBUG(tda::log() << "fallback applied on RR " << printInstrName(VRI.root) << " due to unrecognized or dependency unsolvable.\n");
+        }
+    }
+
+    for (auto &Entry : FNs) {
+        llvm::Function *F = Entry.first;
+        auto &VFI = Entry.second;
+
+        for (auto &RREntry : VFI.RRs) {
+            const llvm::Value* root = RREntry.first;
+            auto &VRI = RREntry.second;
+
+            if (auto store = dyn_cast<StoreInst>(root)) {
+                auto memBase = getBaseMemoryObject(store->getPointerOperand());
+                if (std::find(memFalls.begin(), memFalls.end(), memBase) != memFalls.end()) {
+                    VRI.lastRange = Range::Top().clone();
+                    VRI.lastRangeComputedAt = std::numeric_limits<uint64_t>::max();
+                    LLVM_DEBUG(tda::log() << "reverted range for "<<printInstrName(VRI.root)<<" due to next unknown range\n");
+                }
+            }
         }
     }
 

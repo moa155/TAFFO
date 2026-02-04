@@ -39,7 +39,7 @@ private:
 
 class AnalysisStore {
 public:
-  virtual void convexMerge(const AnalysisStore& Other) = 0;
+  virtual void convexMerge(const AnalysisStore& Other, bool isFallback = false) = 0;
   virtual std::shared_ptr<CodeAnalyzer> newCodeAnalyzer(CodeInterpreter& CI) = 0;
   virtual std::shared_ptr<AnalysisStore> newFunctionStore(CodeInterpreter& CI) = 0;
 

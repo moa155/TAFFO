@@ -239,6 +239,7 @@ private:
     u_int64_t propagationChanging;
 
     llvm::DenseMap<const llvm::Value*, unsigned> InstrPos;
+    u_int16_t remainingUnsolvedRR = 0;
 };
 
 }

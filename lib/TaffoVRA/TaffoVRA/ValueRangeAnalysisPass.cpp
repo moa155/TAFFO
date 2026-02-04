@@ -39,8 +39,8 @@ cl::opt<bool> ShowRangeCompareTable("show-range-compare-table",
                           cl::init(false));
 
 cl::opt<unsigned> MaxPropagation("max-propagation",
-                          cl::desc("Max propagation iterations before stopping (4 is the default, 0 disables the limit)."),
-                          cl::init(4U));
+                          cl::desc("Max propagation iterations before stopping (10 is the default, 0 disables the limit)."),
+                          cl::init(10U));
 
 } // namespace taffo
 

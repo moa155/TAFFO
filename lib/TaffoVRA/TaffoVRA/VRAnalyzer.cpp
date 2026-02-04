@@ -16,14 +16,14 @@ using namespace taffo;
 
 #define DEBUG_TYPE "taffo-vra"
 
-void VRAnalyzer::convexMerge(const AnalysisStore& other) {
+void VRAnalyzer::convexMerge(const AnalysisStore& other, bool isFallback) {
   // Since dyn_cast<T>() does not do cross-casting, we must do this:
   if (isa<VRAnalyzer>(other))
-    VRAStore::convexMerge(cast<VRAStore>(cast<VRAnalyzer>(other)));
+    VRAStore::convexMerge(cast<VRAStore>(cast<VRAnalyzer>(other)), isFallback);
   else if (isa<VRAGlobalStore>(other))
-    VRAStore::convexMerge(cast<VRAStore>(cast<VRAGlobalStore>(other)));
+    VRAStore::convexMerge(cast<VRAStore>(cast<VRAGlobalStore>(other)), isFallback);
   else
-    VRAStore::convexMerge(cast<VRAStore>(cast<VRAFunctionStore>(other)));
+    VRAStore::convexMerge(cast<VRAStore>(cast<VRAFunctionStore>(other)), isFallback);
 }
 
 std::shared_ptr<CodeAnalyzer> VRAnalyzer::newCodeAnalyzer(CodeInterpreter& CI) {
@@ -322,21 +322,6 @@ void VRAnalyzer::returnFromCall(Instruction* I, std::shared_ptr<AnalysisStore> F
   LLVM_DEBUG(
     Logger->logInstruction(I);
     Logger->logInfo("returning from call"));
-
-  // std::shared_ptr<VRAFunctionStore> FStore = std::static_ptr_cast<VRAFunctionStore>(FunctionStore);
-  // std::shared_ptr<ValueInfo> Ret = FStore->getRetVal();
-  // if (!Ret) {
-  //   LLVM_DEBUG(Logger->logInfoln("function returns nothing"));
-  // }
-  // else if (std::shared_ptr<ValueInfoWithRange> RetRange = std::dynamic_ptr_cast_or_null<ValueInfoWithRange>(Ret)) {
-  //   saveValueRange(I, RetRange);
-  //   //VFI.lastRange = getRange(RetRange);
-  //   LLVM_DEBUG(logRangeln(I));
-  // }
-  // else {
-  //   setNode(I, Ret);
-  //   LLVM_DEBUG(Logger->logRangeln(Ret));
-  // }
 }
 
 void VRAnalyzer::prepareForCallPropagation(Instruction* I, std::shared_ptr<AnalysisStore> FunctionStore, bool& isRangeChanged, VRAFunctionInfo& VFI) {
@@ -355,12 +340,15 @@ void VRAnalyzer::prepareForCallPropagation(Instruction* I, std::shared_ptr<Analy
     auto node = getNode(Arg);
     ArgRanges.push_back(node);
 
+    LLVM_DEBUG(tda::log() << "\nincoming range ["<<Arg<<"] " << (getRange(node) ? getRange(node)->toString() : "") << "\n");
+
     if (VFI.lastRangeArgs.count(Arg)) {
       auto IncomingRange = getRange(node);
+      
       if (isNewRangeWiden(VFI.lastRangeArgs[Arg], IncomingRange)) {
         isRangeChanged = true;
         VFI.lastRangeArgs[Arg] = IncomingRange;
-        LLVM_DEBUG(tda::log() << " Argomento "<<Arg->getName()<<" allargato ");
+        LLVM_DEBUG(tda::log() << " Argomento "<< Arg->getName()<< " allargato ");
       }
     } else {
       isRangeChanged = true;  //new argument

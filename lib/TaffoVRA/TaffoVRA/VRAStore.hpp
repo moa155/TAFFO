@@ -14,7 +14,7 @@ namespace taffo {
 
 class VRAStore {
 public:
-  void convexMerge(const VRAStore& other);
+  void convexMerge(const VRAStore& other, bool isFallback = false);
 
   virtual std::shared_ptr<Range> fetchRange(const llvm::Value* v);
   virtual std::shared_ptr<ValueInfoWithRange> fetchRange(const std::shared_ptr<ValueInfo> valueInfo) const;
@@ -39,7 +39,7 @@ protected:
   std::shared_ptr<VRALogger> Logger;
 
   std::shared_ptr<ScalarInfo> assignScalarRange(const std::shared_ptr<ValueInfo>& dst,
-                                                const std::shared_ptr<ValueInfo>& src) const;
+                                                const std::shared_ptr<ValueInfo>& src, bool isFallback = false) const;
   void assignStructNode(const std::shared_ptr<ValueInfo>& dst, const std::shared_ptr<ValueInfo>& src) const;
   bool extractGEPOffset(const llvm::Type* sourceElementType,
                         const llvm::iterator_range<llvm::User::const_op_iterator> indices,

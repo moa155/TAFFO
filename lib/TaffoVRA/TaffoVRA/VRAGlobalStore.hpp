@@ -20,7 +20,7 @@ public:
 
   std::shared_ptr<VRAGlobalStore> deepClone() const;
 
-  void convexMerge(const AnalysisStore& other) override;
+  void convexMerge(const AnalysisStore& other, bool isFallback = false) override;
   std::shared_ptr<CodeAnalyzer> newCodeAnalyzer(CodeInterpreter& CI) override;
   std::shared_ptr<AnalysisStore> newFunctionStore(CodeInterpreter& CI) override;
 
