@@ -28,6 +28,8 @@ public:
   virtual bool operator==(const NumericTypeInfo& other) const { return getKind() == other.getKind(); }
   virtual bool operator!=(const NumericTypeInfo& other) const { return !(*this == other); }
 
+  virtual bool isForced() const { return false; }
+
   virtual std::shared_ptr<NumericTypeInfo> clone() const = 0;
 };
 
@@ -35,11 +37,8 @@ class FixedPointInfo : public NumericTypeInfo {
 public:
   static bool classof(const NumericTypeInfo* T) { return T->getKind() == K_FixedPoint; }
 
-  FixedPointInfo(bool isSigned, unsigned bits, unsigned fractionalBits, bool isUserSpecified)
+  FixedPointInfo(bool isSigned, unsigned bits, unsigned fractionalBits, bool isUserSpecified = false)
   : sign(isSigned), bits(bits), fractionalBits(fractionalBits), forced(isUserSpecified) {}
-
-  FixedPointInfo(bool isSigned, unsigned bits, unsigned fractionalBits)
-  : sign(isSigned), bits(bits), fractionalBits(fractionalBits) {}
 
   double getRoundingError() const override;
   llvm::APFloat getMinValueBound() const override;
@@ -49,7 +48,7 @@ public:
   unsigned getBits() const { return bits; }
   unsigned getFractionalBits() const { return fractionalBits; }
   NumericTypeKind getKind() const override { return K_FixedPoint; }
-  bool isForced() const { return forced; }
+  bool isForced() const override { return forced; }
 
   bool operator==(const NumericTypeInfo& other) const override;
 
@@ -62,7 +61,7 @@ private:
   bool sign;
   unsigned bits;
   unsigned fractionalBits;
-  bool forced = false;
+  bool forced;
 };
 
 class FloatingPointInfo : public NumericTypeInfo {
