@@ -12,6 +12,7 @@ class CodeInterpreter;
 class CodeAnalyzer;
 class ModuleInterpreter;
 class VRARecurrenceInfo;
+class VRAAssignationInfo;
 class VRAFunctionInfo;
 class RangedRecurrence;
 class Range;
@@ -89,6 +90,8 @@ public:
 
   virtual std::shared_ptr<RangedRecurrence> buildDeltaAffinePHIRecurrence(VRARecurrenceInfo VRI, const llvm::PHINode* phi, VRARecurrenceInfo* InnerVRI) = 0;
   virtual std::shared_ptr<RangedRecurrence> buildDeltaAffineStoreRecurrence(VRARecurrenceInfo VRI, const llvm::StoreInst* store, VRARecurrenceInfo* InnerVRI) = 0;
+
+  virtual std::pair<std::shared_ptr<RangedRecurrence>, std::shared_ptr<RangedRecurrence>> buildStoreCrossingAffineRecurrence(VRAAssignationInfo first, VRAAssignationInfo second) = 0;
 
   virtual std::shared_ptr<RangedRecurrence> buildInitRecurrence(std::shared_ptr<Range> LastStoredRange, const llvm::StoreInst *store) = 0;
   virtual std::shared_ptr<RangedRecurrence> buildUnknownRecurrence(const llvm::Value *V) = 0;

@@ -70,6 +70,7 @@ struct RecurrenceSummary {
 struct VRARecurrenceInfo {
     const llvm::Value* root;
     llvm::SmallVector<const llvm::Value*> chain;
+    llvm::SmallVector<const llvm::LoadInst*> loads;
     VRAInspectionKind kind;
 
     // reference to build specialized affine/geo recurrence
@@ -90,11 +91,27 @@ struct VRARecurrenceInfo {
     std::string chainToString();
 };
 
+struct VRAAssignationInfo : public VRARecurrenceInfo {
+    VRAAssignationInfo() : VRARecurrenceInfo() { kind = VRAInspectionKind::ASSIGN; }
+    VRAAssignationInfo(const llvm::Value* root) : VRARecurrenceInfo(root) { kind = VRAInspectionKind::ASSIGN; }
+    VRAAssignationInfo(const llvm::Value* root, llvm::SmallVector<const llvm::Value*> Chain, llvm::SmallVector<const llvm::LoadInst*> Loads) 
+        : VRARecurrenceInfo(root) {
+        kind = VRAInspectionKind::ASSIGN;
+        chain = std::move(Chain);
+        loads = std::move(Loads);
+    }
+};
+
+// Utility used by both VRAnalyzer and ModuleInterpreter to peel off pointer casts
+// and find the originating memory object for a given pointer.
+const llvm::Value* getBaseMemoryObject(const llvm::Value* Ptr);
+
 struct VRAFunctionInfo {
     llvm::Function* F;
     llvm::SmallVector<llvm::BasicBlock*> bbFlow;
     llvm::DenseMap<const llvm::Loop*, VRALoopInfo> loops;
     llvm::DenseMap<const llvm::Value*, VRARecurrenceInfo> RRs;
+    llvm::DenseMap<const llvm::Value*, VRAAssignationInfo> ASs;
     FunctionScope scope;
 
     std::shared_ptr<Range> lastRange;
@@ -116,6 +133,10 @@ struct VRAFunctionInfo {
 
     void addRecurrenceInfo(VRARecurrenceInfo RI) {
         RRs.try_emplace(RI.root, RI);
+    }
+
+    void addAssignmentInfo(VRAAssignationInfo AI) {
+        ASs.try_emplace(AI.root, AI);
     }
 
     size_t countLoops() { return loops.size(); }
@@ -158,6 +179,8 @@ public:
         }
     }
 
+    std::shared_ptr<Range> getLastStoredRange(const llvm::Value* BaseStore);
+
     void interpret();
 
     // method to embed fixed-point loop and avoid recall preseed and inspect
@@ -189,24 +212,25 @@ protected:
     void assemble();
 
     bool analyzeSolvability(const llvm::Value* cur, VRAFunctionInfo& VFI, VRARecurrenceInfo& VRI, VRALoopInfo& VLI);
-    bool isSolvableDependenceTree(const llvm::Value *V, llvm::Loop* L, VRARecurrenceInfo& VRI);
     bool isSolvableDependenceTreeBackwark(const llvm::Value *V, llvm::Loop* L, VRARecurrenceInfo& VRI);
-    bool isSolvableDependenceTreeDelta(const llvm::Value *V, llvm::Loop* L, VRARecurrenceInfo& VRI);
     void updateKnownSuccessorAnalyzer(std::shared_ptr<CodeAnalyzer> CurrentAnalyzer, llvm::BasicBlock* nextBlock);
 
     bool isFakeRecurrence(VRARecurrenceInfo& VRI);
     bool isUnknownRecurrence(VRARecurrenceInfo& VRI);
     bool isInitRecurrence(VRARecurrenceInfo& VRI);
+
     bool isAffineRecurrence(VRARecurrenceInfo& VRI);
     bool isDeltaAffineRecurrence(VRARecurrenceInfo& VRI);
+    bool isCrossingAffineRecurrence(VRAAssignationInfo& VRI);
+
     bool isGeometricRecurrence(VRARecurrenceInfo& VRI);
     bool isDeltaGeometricRecurrence(VRARecurrenceInfo& VRI);
-    bool isCrossingAffineRecurrence(VRARecurrenceInfo& VRI);
+    bool isCrossingGeometricRecurrence(VRAAssignationInfo& VRI);
+
     void fallbackRecurrence(VRARecurrenceInfo& VRI);
     // add here new recurrences...
 
     const llvm::Value* matchIVOffset(VRAFunctionInfo VFI, const llvm::Value *Idx, int64_t &Offset, llvm::Loop *L);
-    std::shared_ptr<Range> getLastStoredRange(const llvm::Value* BaseStore);
 
     // 4) TRIP COUNT METHODS
     void tripCount();

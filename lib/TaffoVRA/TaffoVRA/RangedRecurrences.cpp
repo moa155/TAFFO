@@ -91,14 +91,14 @@ std::string AffineRangedRecurrence::toString() const {
 
 // ================= Affine flattened =======================
 
-std::shared_ptr<Range> AffineFlattinedRangedRecurrence::at(std::uint64_t i) const {
+std::shared_ptr<Range> AffineFlattenedRangedRecurrence::at(std::uint64_t i) const {
   if (!Start) return Range::Top().clone();
   if (i == 0) return std::make_shared<Range>(*Start);
   auto term = RangedRecurrence::scaleByUInt(Step, i);
   return handleAdd(Start, term);
 }
 
-std::string AffineFlattinedRangedRecurrence::toString() const {
+std::string AffineFlattenedRangedRecurrence::toString() const {
   std::string s; llvm::raw_string_ostream os(s);
   if (Step && Step->isTop()) {
     os << "unknown(start = " << rangeToString(Start) << ", end = TOP)";
@@ -161,8 +161,8 @@ std::string AffineDeltaRangedRecurrence::toString() const {
 
 std::shared_ptr<Range> AffineCrossingRangedRecurrence::at(std::uint64_t i) const {
   if (!Start) return Range::Top().clone();
-  if (i == 0) return std::make_shared<Range>(*Start);
-  auto term = RangedRecurrence::scaleByUInt(Step, i);
+  if (i == 0 || i == 1) return std::make_shared<Range>(*Start);
+  auto term = RangedRecurrence::scaleByUInt(Step, i - 1); //this RR values after first recurrence
   return handleAdd(Start, term);
 }
 
@@ -247,8 +247,8 @@ std::string GeometricDeltaRangedRecurrence::toString() const {
 std::shared_ptr<Range> GeometricCrossingRangedRecurrence::at(std::uint64_t i) const {
   if (!Start) return Range::Top().clone();
   if (!Ratio) return Range::Top().clone();
-  if (i == 0) return std::make_shared<Range>(*Start);
-  auto powIv = GeometricRangedRecurrence::powerInterval(i, Ratio->min, Ratio->max);
+  if (i == 0 || i == 1) return std::make_shared<Range>(*Start);
+  auto powIv = GeometricRangedRecurrence::powerInterval(i - 1, Ratio->min, Ratio->max);
   auto out = handleMul(Start, powIv);
   if (out) taffo::outward(*out);
   return out ? out : Range::Top().clone();

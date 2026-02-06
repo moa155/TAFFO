@@ -142,9 +142,9 @@ private:
  * ex: dst[i] += src[i][j]
  * at(i)      = start + i * step
  */
-class AffineFlattinedRangedRecurrence final : public RangedRecurrence {
+class AffineFlattenedRangedRecurrence final : public RangedRecurrence {
 public:
-  AffineFlattinedRangedRecurrence(std::shared_ptr<Range> start, std::shared_ptr<Range> step)
+  AffineFlattenedRangedRecurrence(std::shared_ptr<Range> start, std::shared_ptr<Range> step)
     : Start(std::move(start)), Step(std::move(step)) {}
 
   Kind kind() const noexcept override { return Kind::AffineFlattened; }

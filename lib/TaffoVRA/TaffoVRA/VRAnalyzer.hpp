@@ -68,6 +68,9 @@ public:
   //delta
   std::shared_ptr<RangedRecurrence> buildDeltaAffinePHIRecurrence(VRARecurrenceInfo VRI, const llvm::PHINode* store, VRARecurrenceInfo* InnerVRI) override;
   std::shared_ptr<RangedRecurrence> buildDeltaAffineStoreRecurrence(VRARecurrenceInfo VRI, const llvm::StoreInst* store, VRARecurrenceInfo* InnerVRI) override;
+
+  //crossing
+  std::pair<std::shared_ptr<RangedRecurrence>, std::shared_ptr<RangedRecurrence>> buildStoreCrossingAffineRecurrence(VRAAssignationInfo first, VRAAssignationInfo second) override;
   
   std::shared_ptr<RangedRecurrence> buildInitRecurrence(std::shared_ptr<Range> LastStoredRange, const llvm::StoreInst *store) override;
   std::shared_ptr<RangedRecurrence> buildUnknownRecurrence(const llvm::Value *V) override;
