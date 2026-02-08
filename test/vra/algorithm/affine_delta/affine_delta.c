@@ -21,7 +21,7 @@ static inline float rand_range(float min, float max) {
     return min + (max - min) * fast_rand01();
 }
 
-float data[R][C] __attribute__((annotate("scalar(range(-2, 3))")));
+float data[R][C] __attribute__((annotate("scalar(range(-1, 2) final)")));
 
 int main(int argc, char const *argv[])
 {
@@ -31,7 +31,7 @@ int main(int argc, char const *argv[])
 
     for (int i = 0; i < R; i++) {
         for (int j = 0; j < C; j++) {
-            data[i][j] = rand_range(-2.0f, 3.0f);
+            data[i][j] = rand_range(-0.5f, 1.0f);
         }
     }
 

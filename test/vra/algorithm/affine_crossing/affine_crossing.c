@@ -20,8 +20,8 @@ static inline float rand_range(float min, float max) {
     return min + (max - min) * fast_rand01();
 }
 
-double src_left[R] __attribute__((annotate("scalar(range(-1, 1))")));
-double src_right[R] __attribute__((annotate("scalar(range(-1, 1))")));
+double src_left[R] __attribute__((annotate("scalar(range(-1, 2))")));
+double src_right[R] __attribute__((annotate("scalar(range(-1, 2))")));
 double left[R] __attribute__((annotate("scalar(range(0, 0))")));
 double right[R] __attribute__((annotate("scalar(range(0, 0))")));
 
@@ -29,8 +29,8 @@ int main(int argc, char const *argv[])
 {
 
     for (int i = 0; i < R; i++) {
-        src_left[i] = rand_range(-0.002f, 0.001f);
-        src_right[i] = rand_range(-0.021f, 0.022f);
+        src_left[i] = rand_range(-0.5f, 1.0f);
+        src_right[i] = rand_range(-0.5f, 1.0f);
     }
 
     for (int m = 0; m < M; ++m) {
@@ -52,8 +52,8 @@ int main(int argc, char const *argv[])
 
                     
         for (int i = 1; i < R; i++) {
-            left[i] = right[i-1] + 0.013f;
-            right[i] = left[i-1] - 0.004f;
+            left[i] = right[i-1] + 0.2f;
+            right[i] = left[i-1] - 0.07f;
         }
 
         asm volatile("RDTSCP\n\t"

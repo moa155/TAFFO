@@ -31,7 +31,7 @@ int main(int argc, char const *argv[])
 
     for (int i = 0; i < R; i++) {
         for (int j = 0; j < C; j++) {
-            data[i][j] = rand_range(-0.01f, 0.03f);
+            data[i][j] = rand_range(-0.1f, 0.3f);
         }
     }
 
