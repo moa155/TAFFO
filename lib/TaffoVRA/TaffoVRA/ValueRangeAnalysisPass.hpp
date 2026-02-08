@@ -14,7 +14,6 @@ extern llvm::cl::opt<unsigned> Unroll;
 extern llvm::cl::opt<unsigned> MaxUnroll;
 
 extern llvm::cl::opt<bool> UseOldVRA;
-extern llvm::cl::opt<bool> ShowRangeCompareTable;
 extern llvm::cl::opt<unsigned> MaxPropagation;
 
 class ValueRangeAnalysisPass : public llvm::PassInfoMixin<ValueRangeAnalysisPass> {

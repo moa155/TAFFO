@@ -35,10 +35,6 @@ cl::opt<bool> UseOldVRA("use-old-vra",
                           cl::desc("Flag this to analyze by using old VRA. (Default: false)"),
                           cl::init(false));
 
-cl::opt<bool> ShowRangeCompareTable("show-range-compare-table",
-                          cl::desc("Show comparison table between old and new VRA (Default: true)"),
-                          cl::init(false));
-
 cl::opt<unsigned> MaxPropagation("max-propagation",
                           cl::desc("Max propagation iterations before stopping (10 is the default, 0 disables the limit)."),
                           cl::init(10U));

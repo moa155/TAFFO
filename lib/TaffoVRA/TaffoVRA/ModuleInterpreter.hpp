@@ -237,7 +237,7 @@ protected:
 
     // 5) PROPAGATION METHODS
     void propagate();
-    void propagateFunction(llvm::Function* F);
+    void propagateFunction(llvm::Function* F, std::shared_ptr<AnalysisStore> FunctionStore = nullptr);
     void walk(llvm::Loop* L = nullptr);
 
     // resolve all locked loops and RR after last iteration and iterate one again

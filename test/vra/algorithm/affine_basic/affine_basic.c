@@ -33,7 +33,7 @@ int main(int argc, char const *argv[])
     float __attribute__((annotate("scalar(range(0, 0))"))) res[N];
 
     for (int i = 0; i < N; i++) {
-        arr[i] = rand_range(-0.03f, 0.07f);
+        arr[i] = rand_range(-0.5f, 1.0f);
     }
 
     for (int m = 0; m < M; ++m) {
@@ -58,12 +58,12 @@ int main(int argc, char const *argv[])
             sub -= 0.011f;
 
             tot += arr[i];
-            res[i] = foo(0.002,0.0055);
+            res[i] = foo(0.5f,0.75f);
         
         }
 
         for (int i = 1; i < N; i++) {
-            res[i] = res[i - 1] - 0.0102225;
+            res[i] = res[i - 1] - 0.002f;
         }
 
         acc_gt[0] = add;

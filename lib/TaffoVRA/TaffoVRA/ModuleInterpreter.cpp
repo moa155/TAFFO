@@ -817,7 +817,7 @@ void ModuleInterpreter::resolveCall(std::shared_ptr<CodeAnalyzer> CurAnalyzer, l
       FunctionStore = GlobalStore->newFnStore(*this);
 
     CurAnalyzer->prepareForCallPropagation(I, FunctionStore);
-    propagateFunction(F);
+    propagateFunction(F, FunctionStore);
     LLVM_DEBUG(tda::log() << "\nPropagation of function "<<F->getName()<<" ended, previous context restored\n\n");
     CurAnalyzer->returnFromCallPropagation(I, FunctionStore);
 }
@@ -2412,13 +2412,13 @@ void ModuleInterpreter::walk(llvm::Loop* L) {
 
 }
 
-void ModuleInterpreter::propagateFunction(llvm::Function* F) {
+void ModuleInterpreter::propagateFunction(llvm::Function* F, std::shared_ptr<AnalysisStore> FunctionStore) {
     LLVM_DEBUG(tda::log() << "\n\n[VRA] >> [Propagation] >> FN[" << F->getName() << "] - START PROPAGATION\n");
 
     VRAFunctionInfo& VFI = FNs[F];
     curFn.push_back(F);
 
-    if (!isFallback) {
+    if (!isFallback && FunctionStore == nullptr) {
         VFI.scope = FunctionScope(GlobalStore->newFnStore(*this));
         VFI.scope.BBAnalyzers[&F->getEntryBlock()] = GlobalStore->newInstructionAnalyzer(*this);
     }
