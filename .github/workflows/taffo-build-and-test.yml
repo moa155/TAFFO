@@ -33,7 +33,7 @@ jobs:
 
     - name: Python Dependencies
       run: |
-        cd ${{github.workspace}}
+        cd ${GITHUB_WORKSPACE}
         python3 -m venv .venv
         . .venv/bin/activate
         pip install -r requirements.txt
@@ -41,7 +41,7 @@ jobs:
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -G Ninja \
+      run: cmake -S ${GITHUB_WORKSPACE} -B ${GITHUB_WORKSPACE}/build -G Ninja \
         -CMAKE_C_COMPILER=gcc \
         -CMAKE_C_COMPILER=g++ \
         -DTAFFO_UNITTESTS=ON \
@@ -50,13 +50,13 @@ jobs:
     - name: Build
       # Build your program with the given configuration
       run: |
-        cmake --build ${{github.workspace}}/build -j $(nproc) -- all
-        cmake --build ${{github.workspace}}/build -- install
+        cmake --build ${GITHUB_WORKSPACE}/build -j $(nproc) -- all
+        cmake --build ${GITHUB_WORKSPACE}/build -- install
 
     - name: Test
       env:
         LD_LIBRARY_PATH: /opt/or-tools/lib:/opt/llvm-18/lib
       run: |
-        cd ${{github.workspace}}
+        cd ${GITHUB_WORKSPACE}
         . .venv/bin/activate
-        ctest --test-dir ${{github.workspace}}/build -j $(nproc) --output-on-failure --timeout 3600
+        ctest --test-dir ${GITHUB_WORKSPACE}/build -j $(nproc) --output-on-failure --timeout 3600
