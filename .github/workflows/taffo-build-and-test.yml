@@ -47,8 +47,8 @@ jobs:
     - name: Configure CMake
       run: |
         cd ${GITHUB_WORKSPACE}
-        cmake -S ${GITHUB_WORKSPACE} -B ${GITHUB_WORKSPACE}/build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
-          -DTAFFO_UNITTESTS=ON \
+        cmake -S ${GITHUB_WORKSPACE} -B ${GITHUB_WORKSPACE}/build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Debug \
           -DLLVM_DIR=/opt/llvm-18
 
     - name: Build
