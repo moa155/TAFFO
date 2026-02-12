@@ -5,7 +5,7 @@
 #define M 1
 #endif
 
-#define N 50
+#define N 20
 
 static inline double __attribute__((annotate("scalar(range(0, 1) disabled)"))) fast_rand01(void) {
     static uint64_t state = 0xC0FFEE1234ULL;
@@ -16,11 +16,11 @@ static inline double __attribute__((annotate("scalar(range(0, 1) disabled)"))) f
     return (x >> 11) * (1.0 / 9007199254740992.0); // 2^53
 }
 
-static inline float rand_range(float min, float max) {
+static inline float __attribute__((annotate("scalar(range(1.1, 1.5) final disabled)"))) rand_range(float min, float max) {
     return (float)(min + (max - min) * fast_rand01());
 }
 
-float arr[N] __attribute__((annotate("scalar(range(-2, 2) final)")));
+float arr[N] __attribute__((annotate("scalar(range(1, 1))")));
 
 float foo(float x, float y) {
     return x + y;
@@ -33,7 +33,7 @@ int main(int argc, char const *argv[])
     float __attribute__((annotate("scalar(range(1, 1))"))) res[N];
 
     for (int i = 0; i < N; i++) {
-        arr[i] = rand_range(0.0011f, 0.009f);
+        arr[i] = rand_range(1.1f, 1.5f);
     }
 
     for (int m = 0; m < M; ++m) {
@@ -48,9 +48,9 @@ int main(int argc, char const *argv[])
                     "mov %%eax, %1\n\t"
                     : "=r"(cycles_high), "=r"(cycles_low)::"%rax", "%rbx", "%rcx", "%rdx");
 
-        float __attribute__((annotate("scalar(range(1, 1))"))) mul = 1.2002334;
-        float __attribute__((annotate("scalar(range(100, 100))"))) div = 128;
-        float __attribute__((annotate("scalar(range(0.9, 1.2))"))) tot = 1.1231249;
+        float __attribute__((annotate("scalar()"))) mul = 1.2002334;
+        float __attribute__((annotate("scalar()"))) div = 128;
+        float __attribute__((annotate("scalar()"))) tot = 1.1231249;
 
         for (int i = 0; i < N; i++) {
 

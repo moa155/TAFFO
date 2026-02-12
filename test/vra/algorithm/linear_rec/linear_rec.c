@@ -5,7 +5,7 @@
 #define M 1
 #endif
 
-#define N 500
+#define N 50
 
 static inline double __attribute__((annotate("scalar(range(0, 1) disabled)"))) fast_rand01(void) {
     static uint64_t state = 0xC0FFEE1234ULL;
@@ -16,11 +16,21 @@ static inline double __attribute__((annotate("scalar(range(0, 1) disabled)"))) f
     return (x >> 11) * (1.0 / 9007199254740992.0); // 2^53
 }
 
-static inline float __attribute__((annotate("scalar(range(-0.5, 1) final disabled)"))) rand_range(float min, float max) {
+static inline float __attribute__((annotate("scalar(range(1.02, 1.2) final disabled)"))) rand_range(float min, float max) {
+    return (float)(min + (max - min) * fast_rand01());
+}
+
+static inline float __attribute__((annotate("scalar(range(1.001, 1.301) final disabled)"))) rand_range_2(float min, float max) {
+    return (float)(min + (max - min) * fast_rand01());
+}
+
+static inline float __attribute__((annotate("scalar(range(1, 2) final disabled)"))) rand_range_3(float min, float max) {
     return (float)(min + (max - min) * fast_rand01());
 }
 
 float arr[N] __attribute__((annotate("scalar()")));
+float A[N] __attribute__((annotate("scalar()")));
+float B[N] __attribute__((annotate("scalar()")));
 
 float foo(float x, float y) {
     return x + y;
@@ -29,11 +39,10 @@ float foo(float x, float y) {
 int main(int argc, char const *argv[])
 {
 
-    float __attribute__((annotate("scalar(range(0,0))"))) acc_gt[3];
-    float __attribute__((annotate("scalar(range(0,0))"))) res[N];
-
     for (int i = 0; i < N; i++) {
-        arr[i] = rand_range(-0.5f, 1.0f);
+        arr[i] = rand_range(1.02f, 1.2f);
+        A[i] = rand_range(1.001f, 1.301f);
+        B[i] = rand_range(1.0f, 2.0f);
     }
 
     for (int m = 0; m < M; ++m) {
@@ -48,27 +57,10 @@ int main(int argc, char const *argv[])
                     "mov %%eax, %1\n\t"
                     : "=r"(cycles_high), "=r"(cycles_low)::"%rax", "%rbx", "%rcx", "%rdx");
 
-        float __attribute__((annotate("scalar()"))) add = 0.0020233;
-        float __attribute__((annotate("scalar()"))) sub = 0.0060251;
-        float __attribute__((annotate("scalar()"))) tot = 0.0231249;
-
-        for (int i = 0; i < N; i++) {
-
-            add += 0.021f;
-            sub -= 0.011f;
-
-            tot += arr[i];
-            res[i] = foo(0.5f,0.75f);
-        
-        }
-
         for (int i = 1; i < N; i++) {
-            res[i] = res[i - 1] - 0.002f;
+            float tmp = A[i] * arr[i - 1];
+            arr[i] = tmp + B[i];
         }
-
-        acc_gt[0] = add;
-        acc_gt[1] = sub;
-        acc_gt[2] = tot;
 
         asm volatile("RDTSCP\n\t"
                  "mov %%edx, %0\n\t"
@@ -83,10 +75,7 @@ int main(int argc, char const *argv[])
 
     printf("Values Begin\n");
     for (int j = 0; j < N; ++j)
-        printf("%f\n", res[j]);
-    printf("%f\n", acc_gt[0]);
-    printf("%f\n", acc_gt[1]);
-    printf("%f\n", acc_gt[2]);
+        printf("%f\n", arr[j]);
     printf("Values End\n");
 
     return 0;

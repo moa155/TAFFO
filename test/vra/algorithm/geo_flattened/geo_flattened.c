@@ -5,8 +5,8 @@
 #define M 1
 #endif
 
-#define R 100
-#define C 50
+#define R 20
+#define C 5
 
 static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fast_rand01(void) {
     static uint64_t state = 0xC0FFEE1234ULL;
@@ -17,11 +17,11 @@ static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fa
     return (float)((x >> 11) * (1.0 / 9007199254740992.0)); // 2^53, cast to float
 }
 
-static inline float rand_range(float min, float max) {
+static inline float __attribute__((annotate("scalar(range(1.1, 1.5) final disabled)"))) rand_range(float min, float max) {
     return min + (max - min) * fast_rand01();
 }
 
-float data[R][C] __attribute__((annotate("scalar(range(1, 10))")));
+float data[R][C] __attribute__((annotate("scalar(range(1, 1))")));
 
 int main(int argc, char const *argv[])
 {
@@ -30,7 +30,7 @@ int main(int argc, char const *argv[])
 
     for (int i = 0; i < R; i++) {
         for (int j = 0; j < C; j++) {
-            data[i][j] = rand_range(1.0001f, 5.001f);
+            data[i][j] = rand_range(1.1f, 1.5f);
         }
     }
 

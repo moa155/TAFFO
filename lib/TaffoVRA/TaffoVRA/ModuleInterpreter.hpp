@@ -235,6 +235,8 @@ protected:
     bool isDeltaGeometricRecurrence(VRARecurrenceInfo& VRI);
     bool isCrossingGeometricRecurrence(VRAAssignationInfo& VRI);
 
+    bool isLinearRecurrence(VRARecurrenceInfo& VRI);
+
     void fallbackRecurrence(VRARecurrenceInfo& VRI);
     // add here new recurrences...
 

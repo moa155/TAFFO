@@ -17,11 +17,11 @@ static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fa
     return (float)((x >> 11) * (1.0 / 9007199254740992.0)); // 2^53, cast to float
 }
 
-static inline float rand_range(float min, float max) {
+static inline float __attribute__((annotate("scalar(range(-0.5, 1) final disabled)"))) rand_range(float min, float max) {
     return min + (max - min) * fast_rand01();
 }
 
-float data[R][C] __attribute__((annotate("scalar(range(-1, 2) final)")));
+float data[R][C] __attribute__((annotate("scalar()")));
 
 int main(int argc, char const *argv[])
 {

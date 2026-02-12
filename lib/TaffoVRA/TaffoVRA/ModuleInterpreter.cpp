@@ -313,7 +313,7 @@ static std::vector<const llvm::Value *> getInductionFromLoad(const llvm::LoadIns
   if (DimIdx.size() == 2)
     std::reverse(DimIdx.begin(), DimIdx.end());
 
-  LLVM_DEBUG(tda::log() << "  getInductionFromLoad collected " << DimIdx.size() << " dim idx\n");
+//   LLVM_DEBUG(tda::log() << "  getInductionFromLoad collected " << DimIdx.size() << " dim idx\n");
 
   if (DimIdx.empty()) return Result;
 
@@ -1163,7 +1163,11 @@ void ModuleInterpreter::assemble() {
 
             LLVM_DEBUG(tda::log() << "\n\n[VRA] >> [ASSEMBLE] >> FN["<<F->getName()<<"] - Recognization of " << printInstrName(root) << " instr: " << root << "\n");
 
-            if (isDeltaAffineRecurrence(VRI)) {
+            //add here new recurrences
+            if (isLinearRecurrence(VRI)) {
+                RREntry++;
+                continue;
+            } else if (isDeltaAffineRecurrence(VRI)) {
                 RREntry++;
                 continue;
             } else if (isAffineRecurrence(VRI)) {
@@ -2225,6 +2229,73 @@ bool ModuleInterpreter::isFakeRecurrence(VRARecurrenceInfo& VRI) {
     }
     return false;
 }
+
+
+bool ModuleInterpreter::isLinearRecurrence(VRARecurrenceInfo& VRI) {
+    if (VRI.kind != VRAInspectionKind::REC) return false;
+    LLVM_DEBUG(tda::log() << "\t\ttry to recognize as linear recurrence... \n");
+
+    const auto* InstrRoot = llvm::dyn_cast<llvm::Instruction>(VRI.root);
+    llvm::Function* F = const_cast<llvm::Function*>(InstrRoot->getParent()->getParent());
+    VRAFunctionInfo &VFI = FNs[F];
+    llvm::Loop *L = VFI.LI->getLoopFor(InstrRoot->getParent());
+
+
+    if (const auto *Store = llvm::dyn_cast<llvm::StoreInst>(VRI.root)) {
+
+        bool isSolvable = VRI.chain.size() > 0;
+        bool isFoundGeoOp = false;
+        bool isFoundAffineOp = false;
+        for (const auto* RRNode : VRI.chain) {
+            LLVM_DEBUG(tda::log() << " OP: " << RRNode->getName() << " - ");
+
+            //backwark analysis: no geo without previous affine (at least one), no affine when geo is found
+            if (isAffineBinaryOp(RRNode) && isFoundGeoOp) return false;
+            if (isGeometricBinaryOp(RRNode) && !isFoundAffineOp) return false;
+            if (isAffineBinaryOp(RRNode)) isFoundAffineOp = true;
+            if (isGeometricBinaryOp(RRNode)) isFoundGeoOp = true;
+
+            const auto *BO = llvm::dyn_cast<llvm::BinaryOperator>(RRNode);
+            isSolvable &= isSolvableDependenceTreeBackwark(BO->getOperand(0), L, VRI) && isSolvableDependenceTreeBackwark(BO->getOperand(1), L, VRI);
+        }
+        
+        if (!isSolvable) {
+            LLVM_DEBUG(tda::log() << "\t\t\tRR is not solvable yet: it depends on other unsolved recurrences\n");
+            return true;
+        }
+
+        //currently implemented only arr[i] = arr[i - 1] case
+        if (getBaseMemoryObject(Store->getPointerOperand()) == getBaseMemoryObject(VRI.loadJunction->getPointerOperand())) {
+            const Value *StoreIdx = getIndexOperand(Store->getPointerOperand());
+            const Value *LoadIdx = getIndexOperand(VRI.loadJunction->getPointerOperand());
+
+            int64_t StoreOff = 0;
+            int64_t LoadOff = 0;
+
+            const Value *StoreIV = matchIVOffset(VFI, StoreIdx, StoreOff, L);
+            const Value *LoadIV = matchIVOffset(VFI, LoadIdx, LoadOff, L);
+            if (!StoreIV || !LoadIV || StoreIV != LoadIV) return false;
+            
+            const int64_t delta = StoreOff - LoadOff;
+            if (std::abs(delta) != 1) return false;
+
+            if (auto *latch = L->getLoopLatch()) {
+                auto LatchAnalyzer = VFI.scope.BBAnalyzers[latch];
+
+                std::shared_ptr<RangedRecurrence> RR = LatchAnalyzer->buildLinearRecurrence(VRI, Store);
+                if (RR) {
+                    VRI.RR = RR;
+                    solvedRR.push_back(VRI.root);
+                    LLVM_DEBUG(tda::log() << "recognized "<<RR->toString()<<" \n\n");
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+}
+
 
 //==================================================================================================
 //======================= TRIP COUNT METHODS =======================================================

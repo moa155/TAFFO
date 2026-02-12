@@ -78,6 +78,7 @@ public:
   std::shared_ptr<RangedRecurrence> buildUnknownRecurrence(const llvm::Value *V) override;
   std::shared_ptr<RangedRecurrence> buildGeometricPHIRecurrence(const llvm::PHINode *phi) override;
   std::shared_ptr<RangedRecurrence> buildGeometricStoreRecurrence(VRARecurrenceInfo VRI, const llvm::StoreInst*phi) override;
+  std::shared_ptr<RangedRecurrence> buildLinearRecurrence(VRARecurrenceInfo VRI, const llvm::StoreInst* store) override;
 
   size_t compareLoadStoreDim(VRAFunctionInfo VFI, const llvm::Value *load, const llvm::Value *store) override;
 

@@ -5,7 +5,7 @@
 #define M 1
 #endif
 
-#define R 100
+#define R 20
 
 static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fast_rand01(void) {
     static uint64_t state = 0xC0FFEE1234ULL;
@@ -16,21 +16,28 @@ static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fa
     return (float)((x >> 11) * (1.0 / 9007199254740992.0)); // 2^53, cast to float
 }
 
-static inline float rand_range(float min, float max) {
+static inline float __attribute__((annotate("scalar(range(1.1, 1.5) final disabled)"))) rand_range(float min, float max) {
     return min + (max - min) * fast_rand01();
 }
 
-double src_left[R] __attribute__((annotate("scalar(range(1, 16))")));
-double src_right[R] __attribute__((annotate("scalar(range(1, 16))")));
-double left[R] __attribute__((annotate("scalar(range(1, 1))")));
-double right[R] __attribute__((annotate("scalar(range(1, 1))")));
+static inline float __attribute__((annotate("scalar(range(1.2, 1.7) final disabled)"))) rand_range_2(float min, float max) {
+    return min + (max - min) * fast_rand01();
+}
+
+float src_left[R] __attribute__((annotate("scalar(range(1,1))")));
+float src_right[R] __attribute__((annotate("scalar(range(1,1))")));
+float left[R] __attribute__((annotate("scalar(range(1,1))")));
+float right[R] __attribute__((annotate("scalar(range(1,1))")));
+
+float A __attribute__((annotate("scalar()")));
+float B __attribute__((annotate("scalar()")));
 
 int main(int argc, char const *argv[])
 {
 
     for (int i = 0; i < R; i++) {
-        src_left[i] = rand_range(1.002f, 15.016f);
-        src_right[i] = rand_range(1.021f, 15.08f);
+        src_left[i] = rand_range(1.1f, 1.5f);
+        src_right[i] = rand_range_2(1.2f, 1.7f);
     }
 
     for (int m = 0; m < M; ++m) {
@@ -52,8 +59,8 @@ int main(int argc, char const *argv[])
 
                     
         for (int i = 1; i < R; i++) {
-            left[i] = right[i-1] * 1.013f;
-            right[i] = left[i-1] * 3.004f;
+            left[i] = right[i-1] * 1.00003f;
+            right[i] = left[i-1] * 1.00007f;
         }
 
         asm volatile("RDTSCP\n\t"

@@ -104,6 +104,7 @@ public:
   virtual std::shared_ptr<RangedRecurrence> buildUnknownRecurrence(const llvm::Value *V) = 0;
   virtual std::shared_ptr<RangedRecurrence> buildGeometricPHIRecurrence(const llvm::PHINode *phi) = 0;
   virtual std::shared_ptr<RangedRecurrence> buildGeometricStoreRecurrence(VRARecurrenceInfo VRI, const llvm::StoreInst*phi) = 0;
+  virtual std::shared_ptr<RangedRecurrence> buildLinearRecurrence(VRARecurrenceInfo VRI, const llvm::StoreInst* store) = 0;
 
   virtual size_t compareLoadStoreDim(VRAFunctionInfo VFI, const llvm::Value *load, const llvm::Value *store) = 0;
 

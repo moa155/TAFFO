@@ -17,11 +17,11 @@ static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fa
     return (float)((x >> 11) * (1.0 / 9007199254740992.0)); // 2^53, cast to float
 }
 
-static inline float rand_range(float min, float max) {
+static inline float __attribute__((annotate("scalar(range(-0.5, 1) final disabled)"))) rand_range(float min, float max) {
     return min + (max - min) * fast_rand01();
 }
 
-float data[R][C] __attribute__((annotate("scalar(range(-1, 2) final)")));
+float data[R][C] __attribute__((annotate("scalar()")));
 
 int main(int argc, char const *argv[])
 {
@@ -47,8 +47,8 @@ int main(int argc, char const *argv[])
                     "mov %%eax, %1\n\t"
                     : "=r"(cycles_high), "=r"(cycles_low)::"%rax", "%rbx", "%rcx", "%rdx");
 
-        float __attribute__((annotate("scalar(range(0, 0))"))) sum = 0;
-        float __attribute__((annotate("scalar(range(0, 0))"))) acc = 0;
+        float __attribute__((annotate("scalar()"))) sum = 0;
+        float __attribute__((annotate("scalar()"))) acc = 0;
         for (int i = 0; i < R; i++) {
             for (int j = 0; j < C; j++) {
                 sum += 3;

@@ -927,7 +927,7 @@ void VRAnalyzer::retrieveSolvedRecurrence(llvm::Instruction* I, VRARecurrenceInf
     return std::make_shared<ScalarInfo>(nullptr, VRI.lastRange);
   };
   
-  if (auto* PN = llvm::dyn_cast<llvm::PHINode>(VRI.root)) {
+  if (llvm::dyn_cast<llvm::PHINode>(VRI.root)) {
     auto solved = makeSolvedScalarNode(getNode(VRI.root));
     setNode(VRI.root, solved);
 
@@ -1315,6 +1315,68 @@ std::shared_ptr<RangedRecurrence> VRAnalyzer::buildUnknownRecurrence(const llvm:
 
   LLVM_DEBUG(tda::log() << "recognized unknown(start= " << (StartRange ? StartRange->toString() : "(none)") << ", step= " << StepRange->toString() << ")\n\n");
   return std::make_shared<AffineRangedRecurrence>(std::move(StartRange), std::move(StepRange));
+}
+
+std::shared_ptr<RangedRecurrence> VRAnalyzer::buildLinearRecurrence(VRARecurrenceInfo VRI, const llvm::StoreInst* store) {
+  // Start: value previously stored in the same array (arr[i-1]).
+  auto StartRange = getRange(getNode(VRI.loadJunction));
+  if (!StartRange)
+    StartRange = Range::Top().clone();
+
+  // Expected pattern: add (mul loadA loadArrPrev), loadB
+  const Value *StoredVal = store->getValueOperand();
+  const auto *Add = dyn_cast<BinaryOperator>(StoredVal);
+  std::shared_ptr<Range> ARng = nullptr; // multiplicative term
+  std::shared_ptr<Range> BRng = nullptr; // additive term
+
+  if (Add && Add->getOpcode() == Instruction::FAdd) {
+    const Value *Op0 = Add->getOperand(0);
+    const Value *Op1 = Add->getOperand(1);
+
+    // Identify mul and the other operand
+    const BinaryOperator *Mul = nullptr;
+    const Value *Other = nullptr;
+    if ((Mul = dyn_cast<BinaryOperator>(Op0)) && Mul->getOpcode() == Instruction::FMul) {
+      Other = Op1;
+    } else if ((Mul = dyn_cast<BinaryOperator>(Op1)) && Mul->getOpcode() == Instruction::FMul) {
+      Other = Op0;
+    }
+
+    // Mul operands: A load and previous array element load
+    if (Mul) {
+      const Value *MulOp0 = Mul->getOperand(0);
+      const Value *MulOp1 = Mul->getOperand(1);
+
+      // Choose A as operand whose base mem differs from store base
+      const Value *StoreBase = getBaseMemoryObject(store->getPointerOperand());
+      const Value *MulBase0 = getBaseMemoryObject(MulOp0);
+      const Value *MulBase1 = getBaseMemoryObject(MulOp1);
+
+      const Value *AOp = nullptr;
+      if (MulBase0 && MulBase0 != StoreBase)
+        AOp = MulOp0;
+      else if (MulBase1 && MulBase1 != StoreBase)
+        AOp = MulOp1;
+
+      if (!AOp)
+        AOp = MulOp0;
+
+      ARng = getRange(getNode(AOp));
+    }
+
+    // B is the operand of add whose base differs from store base
+    if (Other) {
+      const Value *StoreBase = getBaseMemoryObject(store->getPointerOperand());
+      const Value *OtherBase = getBaseMemoryObject(Other);
+      if (!StoreBase || (OtherBase && OtherBase != StoreBase))
+        BRng = getRange(getNode(Other));
+    }
+  }
+
+  if (!ARng) ARng = Range::Top().clone();
+  if (!BRng) BRng = Range::Top().clone();
+
+  return std::make_shared<LinearRangedRecurrence>(std::move(StartRange), std::move(ARng), std::move(BRng));
 }
 
 
