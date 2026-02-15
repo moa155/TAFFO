@@ -738,7 +738,6 @@ FollowingPathResponse ModuleInterpreter::followPath(VRAFunctionInfo info, llvm::
     llvm::Loop* dstLoop = info.LI->getLoopFor(dst);
 
     if (srcLoop && isLoopExit(srcLoop, dst)) {
-        LLVM_DEBUG(tda::log() << " (A) ");
         return FollowingPathResponse::NO_ENQUE;
     }
 
@@ -1081,21 +1080,21 @@ void ModuleInterpreter::handleStoreChain(VRAFunctionInfo VFI, Loop* L, const Sto
         }
         
         // Walk backwards through operands to reach defining loads.
-        if (auto *I = dyn_cast<Instruction>(cur)) {  //LLVM_DEBUG(tda::log() << " (cur instr: "<<cur->getName()<<") ");
+        if (auto *I = dyn_cast<Instruction>(cur)) {
             for (const Value *Op : I->operands()) {
                 if (isa<Constant>(Op)) { couldBeInit = true; continue; }
                 enqueue(cur, Op);
             }
         }
 
-        if (auto *I = dyn_cast<CastInst>(cur)) {  //LLVM_DEBUG(tda::log() << " (cur cast: "<<cur->getName()<<") ");
+        if (auto *I = dyn_cast<CastInst>(cur)) {
             for (const Value *Op : I->operands()) {
                 if (isa<Constant>(Op)) { couldBeInit = true; continue; }
                 enqueue(cur, Op);
             }
         }
 
-        if (auto *PHI = dyn_cast<PHINode>(cur)) {  //LLVM_DEBUG(tda::log() << " (cur phi: "<<cur->getName()<<") ");
+        if (auto *PHI = dyn_cast<PHINode>(cur)) {
             auto *I = dyn_cast<Instruction>(PHI);
             if (I->getParent() == L->getHeader()) {
                 couldBeInit = true;
@@ -1443,7 +1442,7 @@ bool ModuleInterpreter::isSolvableDependenceTreeBackwark(const llvm::Value *V, l
     while (!worklist.empty()) {
         const Value *cur = worklist.pop_back_val();
         if (!visited.insert(cur).second) continue;
-        LLVM_DEBUG(tda::log() << " (analyzing backward " << printInstrName(cur) << ") => \n");
+        //LLVM_DEBUG(tda::log() << " (analyzing backward " << printInstrName(cur) << ") => \n");
 
         if (!analyzeSolvability(cur, VFI, VRI, VLI)) return false;
         
@@ -1580,13 +1579,13 @@ bool ModuleInterpreter::isAffineRecurrence(VRARecurrenceInfo& VRI) {
             }
         }
         
-        //affine case 3: same base with index delta == 1
         else if (getBaseMemoryObject(Store->getPointerOperand()) == getBaseMemoryObject(VRI.loadJunction->getPointerOperand())) {
             const Value *StoreIdx = getIndexOperand(Store->getPointerOperand());
             const Value *LoadIdx = getIndexOperand(VRI.loadJunction->getPointerOperand());
 
-            
+            // CASE loop extra beyond IV: for (k) A[i] = A[i] + C
             int maxDistance = 0;
+            const llvm::Loop* maxD_L;
             auto IVs = getInductionFromLoad(VRI.loadJunction, VFI.LI);
             for (auto IV : IVs) {
                 auto IV_Loop = VFI.LI->getLoopFor(llvm::dyn_cast<llvm::Instruction>(IV)->getParent());
@@ -1598,11 +1597,14 @@ bool ModuleInterpreter::isAffineRecurrence(VRARecurrenceInfo& VRI) {
                     ++distance;
                     Cur = Cur->getParentLoop();
                 }
-                LLVM_DEBUG(tda::log() << " (IV loop distance " << (Cur ? distance : -1) << ")");
-                if (distance > maxDistance) maxDistance = distance;
+                if (distance > maxDistance) {
+                    maxDistance = distance;
+                    maxD_L = Cur;
+                }
             }
 
-            if (maxDistance == 2) {
+            // currently handle just only one getParentLoop
+            if (maxDistance == 2 || (maxD_L && maxD_L->getParentLoop())) {
 
                 if (auto *latch = L->getLoopLatch()) {
                     auto LatchAnalyzer = VFI.scope.BBAnalyzers[latch];
@@ -2439,6 +2441,8 @@ void ModuleInterpreter::tripCount() {
                 bool computed = false;
 
                 auto InvariantStore = std::static_pointer_cast<VRAnalyzer>(getStoreForValue(invariantOp));
+                
+                if (!InvariantStore) continue;
                 auto InvariantRange = InvariantStore->getBBRange(invariantOp);
                 
                 if (!isa<Constant>(invariantOp)) {
