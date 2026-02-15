@@ -20,7 +20,7 @@ static inline float __attribute__((annotate("scalar(range(1.1, 1.5) final disabl
     return (float)(min + (max - min) * fast_rand01());
 }
 
-float arr[N] __attribute__((annotate("scalar(range(1, 1))")));
+float arr[N] __attribute__((annotate("scalar(range(1, 2.5))")));
 
 float foo(float x, float y) {
     return x + y;
@@ -33,7 +33,7 @@ int main(int argc, char const *argv[])
     float __attribute__((annotate("scalar(range(1, 1))"))) res[N];
 
     for (int i = 0; i < N; i++) {
-        arr[i] = rand_range(1.1f, 1.5f);
+        arr[i] = rand_range(1.0f, 2.5f);
     }
 
     for (int m = 0; m < M; ++m) {

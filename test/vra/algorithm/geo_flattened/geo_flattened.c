@@ -17,7 +17,7 @@ static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fa
     return (float)((x >> 11) * (1.0 / 9007199254740992.0)); // 2^53, cast to float
 }
 
-static inline float __attribute__((annotate("scalar(range(1.1, 1.5) final disabled)"))) rand_range(float min, float max) {
+static inline float __attribute__((annotate("scalar(range(1, 2.5) final disabled)"))) rand_range(float min, float max) {
     return min + (max - min) * fast_rand01();
 }
 
@@ -30,7 +30,7 @@ int main(int argc, char const *argv[])
 
     for (int i = 0; i < R; i++) {
         for (int j = 0; j < C; j++) {
-            data[i][j] = rand_range(1.1f, 1.5f);
+            data[i][j] = rand_range(1.0f, 2.5f);
         }
     }
 

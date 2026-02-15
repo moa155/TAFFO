@@ -28,7 +28,6 @@ static void init_array(int r, int c, float data[R][C], float *coeff) {
 }
 
 static void kernel(int r, int c, float data[R][C], float res[R], float *coeff) {
-  *coeff = K;
 
   for (int i = 0; i < r; i++) {
     float acc = 0.0f;
