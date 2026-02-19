@@ -2,6 +2,11 @@
 #include <stdio.h>
 #include "../config.h"
 
+/**
+ * Accumulator when higher dimensional vector is reduced in smaller dimensional vector (reducing by 1 dim)
+ * We can consider this as affine recurrence flatting on S (space) dim
+ */
+
 static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fast_rand01(void) {
     static uint64_t state = 0xC0FFEE1234ULL;
     state ^= state >> 12;
@@ -11,31 +16,32 @@ static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fa
     return (float)((x >> 11) * (1.0 / 9007199254740992.0)); // 2^53, cast to float
 }
 
-static inline float __attribute__((annotate("scalar(range(" PB_XSTR(RMIN_POS) ", " PB_XSTR(RMAX_POS) ") final disabled)"))) rand_range(float min, float max) {
+static inline float __attribute__((annotate("scalar(range(" PB_XSTR(RMIN) ", " PB_XSTR(RMAX) ") final disabled)"))) rand_range(float min, float max) {
     return min + (max - min) * fast_rand01();
 }
 
-float data[R_SMALL][C_SMALL] __attribute__((annotate("scalar(range(" PB_XSTR(RMIN_POS) ", " PB_XSTR(RMAX_POS) "))")));
+#if OLDVRA
+float data[R][C] __attribute__((annotate("scalar(range(-" PB_XSTR(R) ", " PB_XSTR(R) "))")));
+#else
+float data[R][C] __attribute__((annotate("scalar(range(0,0))")));
+#endif
 
 int main(int argc, char const *argv[])
 {
 
     #if OLDVRA
-    float sum_gt[1] __attribute__((annotate("scalar(range(1, 790000000000000000000))")));
-    float acc_gt[1] __attribute__((annotate("scalar(range(1, 790000000000000000000))")));
+    float __attribute__((annotate("scalar(range(-75000, 150000))"))) acc_gt[1];
+    float acc[R] __attribute__((annotate("scalar(range(-" PB_XSTR(R) ", " PB_XSTR(R) "))")));
     #else
-    float sum_gt[1] __attribute__((annotate("scalar(range(1,1))")));
-    float acc_gt[1] __attribute__((annotate("scalar(range(1,1))")));
+    float __attribute__((annotate("scalar(range(0, 0))"))) acc_gt[1];
+    float acc[R] __attribute__((annotate("scalar(range(0, 0))")));
     #endif
 
-    for (int i = 0; i < R_SMALL; i++) {
-        for (int j = 0; j < C_SMALL; j++) {
-            data[i][j] = rand_range(RMIN_POS, RMAX_POS);
+    for (int i = 0; i < R; i++) {
+        for (int j = 0; j < C; j++) {
+            data[i][j] = rand_range(RMIN, RMAX);
         }
     }
-
-    float ratio1 = rand_range(RMIN_POS, RMAX_POS);
-    float ratio2 = rand_range(RMIN_POS, RMAX_POS);
 
     for (int m = 0; m < M; ++m) {
         uint32_t cycles_high1 = 0;
@@ -50,23 +56,23 @@ int main(int argc, char const *argv[])
                     : "=r"(cycles_high), "=r"(cycles_low)::"%rax", "%rbx", "%rcx", "%rdx");
 
         #if OLDVRA
-        float mul __attribute__((annotate("scalar(range(1, 790000000000000000000))"))) = 1;
-        float acc __attribute__((annotate("scalar(range(1, 790000000000000000000))"))) = 1;
+        float __attribute__((annotate("scalar(range(-75000, 150000))"))) grand_tot = 0;
         #else
-        float mul __attribute__((annotate("scalar(range(1,1))"))) = 1;
-        float acc __attribute__((annotate("scalar(range(1,1))"))) = 1;
+        float __attribute__((annotate("scalar(range(0,0))"))) grand_tot = 0;
         #endif
         
-        for (int i = 0; i < R_SMALL; i++) {
-            for (int j = 0; j < C_SMALL; j++) {
-                mul *= ratio1;
-                acc *= data[i][j];
+        for (int i = 0; i < R; i++) {
+            acc[i] = 0;
+            for (int j = 0; j < C; j++) {
+                acc[i] += data[i][j];
             }
-            mul *= ratio2;
         }
 
-        sum_gt[0] = mul;
-        acc_gt[0] = acc;
+        for (int i = 1; i < R; i++) {
+            grand_tot += acc[i];
+        }
+
+        acc_gt[0] = grand_tot;  //bring outside
 
         asm volatile("RDTSCP\n\t"
                  "mov %%edx, %0\n\t"
@@ -80,7 +86,8 @@ int main(int argc, char const *argv[])
     }
 
     printf("Values Begin\n");
-    printf("%f\n", sum_gt[0]);
+    for (int j = 0; j < R; ++j)
+        printf("%f\n", acc[j]);
     printf("%f\n", acc_gt[0]);
     printf("Values End\n");
 

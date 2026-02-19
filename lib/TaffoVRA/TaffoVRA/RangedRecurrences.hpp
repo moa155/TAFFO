@@ -45,11 +45,11 @@ public:
   static const char* kindName(Kind k) {
     switch (k) {
       case Kind::Affine: return "Affine";
-      case Kind::AffineFlattened: return "Affine flatting";
+      case Kind::AffineFlattened: return "Affine flattened";
       case Kind::AffineDelta: return "Affine delta";
       case Kind::AffineCrossing: return "Affine crossing";
       case Kind::Geometric: return "Geometric";
-      case Kind::GeometricFlattened: return "Geometric flatting";
+      case Kind::GeometricFlattened: return "Geometric flattened";
       case Kind::GeometricDelta: return "Geometric delta";
       case Kind::GeometricCrossing: return "Geometric crossing";
       case Kind::Linear: return "Linear";

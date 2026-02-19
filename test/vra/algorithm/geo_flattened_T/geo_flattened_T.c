@@ -2,6 +2,10 @@
 #include <stdio.h>
 #include "../config.h"
 
+/**
+ * An extra iterator k is between i and j: this increment j times the accumulation (syrk2, gemm).
+ * We can consider this as affine recurrence flatting on T dim
+ */
 
 static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fast_rand01(void) {
     static uint64_t state = 0xC0FFEE1234ULL;
@@ -16,27 +20,24 @@ static inline float __attribute__((annotate("scalar(range(" PB_XSTR(RMIN_POS) ",
     return min + (max - min) * fast_rand01();
 }
 
-float src_left[R] __attribute__((annotate("scalar(range(" PB_XSTR(RMIN_POS) ", " PB_XSTR(RMAX_POS) "))")));
-float src_right[R] __attribute__((annotate("scalar(range(" PB_XSTR(RMIN_POS) ", " PB_XSTR(RMAX_POS) "))")));
-
 #if OLDVRA
-float left[R] __attribute__((annotate("scalar(range(1, 10000))")));
-float right[R] __attribute__((annotate("scalar(range(1, 10000))")));
+float dest[R_SMALL][C_SMALL] __attribute__((annotate("scalar(range(1, 100))")));
 #else
-float left[R] __attribute__((annotate("scalar(range(1,1))")));
-float right[R] __attribute__((annotate("scalar(range(1,1))")));
+float dest[R_SMALL][C_SMALL] __attribute__((annotate("scalar(range(1, 1))")));
 #endif
+
+float data[R_SMALL][C_SMALL] __attribute__((annotate("scalar(range(" PB_XSTR(RMIN_POS) ", " PB_XSTR(RMAX_POS) "))")));
+float data2[R_SMALL][C_SMALL] __attribute__((annotate("scalar(range(" PB_XSTR(RMIN_POS) ", " PB_XSTR(RMAX_POS) "))")));
 
 int main(int argc, char const *argv[])
 {
 
     for (int i = 0; i < R_SMALL; i++) {
-        src_left[i] = rand_range(RMIN_POS, RMAX_POS);
-        src_right[i] = rand_range(RMIN_POS, RMAX_POS);
+        for (int j = 0; j < C_SMALL; j++) {
+            data[i][j] = rand_range(RMIN_POS, RMAX_POS);
+            data2[i][j] = rand_range(RMIN_POS, RMAX_POS);
+        }
     }
-
-    float ratio1 = rand_range(RMIN_POS, RMAX_POS);
-    float ratio2 = rand_range(RMIN_POS, RMAX_POS);
 
     for (int m = 0; m < M; ++m) {
         uint32_t cycles_high1 = 0;
@@ -44,21 +45,23 @@ int main(int argc, char const *argv[])
         uint32_t cycles_low = 0;
         uint32_t cycles_low1 = 0;
 
-        for (int i = 0; i < R_SMALL; i++) {
-            left[i] = src_left[i];
-            right[i] = src_right[i];
-        }
-
         asm volatile("CPUID\n\t"
                     "RDTSC\n\t"
                     "mov %%edx, %0\n\t"
                     "mov %%eax, %1\n\t"
                     : "=r"(cycles_high), "=r"(cycles_low)::"%rax", "%rbx", "%rcx", "%rdx");
 
-                    
-        for (int i = 1; i < R_SMALL; i++) {
-            left[i] = right[i-1] * ratio1;
-            right[i] = left[i-1] * ratio2;
+        for (int i = 0; i < R_SMALL; i++) {
+            for (int j = 0; j < C_SMALL; j++) {
+                dest[i][j] = rand_range(RMIN_POS, RMAX_POS);    //init
+            }
+        }
+
+
+        for (int i = 0; i < R_SMALL; i++) {
+            for (int k = 0; k < C_SMALL; k++)
+                for (int j = 0; j < C_SMALL; j++)
+                    dest[i][j] *= data[j][k] * 0.1f + data2[i][k] * 0.3f;
         }
 
         asm volatile("RDTSCP\n\t"
@@ -73,10 +76,9 @@ int main(int argc, char const *argv[])
     }
 
     printf("Values Begin\n");
-    for (int j = 0; j < R_SMALL; ++j) {
-        printf("%f\n", left[j]);
-        printf("%f\n", right[j]);
-    }
+    for (int i = 0; i < R_SMALL; ++i)
+        for (int j = 0; j < C_SMALL; j++)
+            printf("%f\n", dest[i][j]);
     printf("Values End\n");
 
     return 0;

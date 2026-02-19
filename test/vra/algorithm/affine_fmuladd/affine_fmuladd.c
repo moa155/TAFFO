@@ -1,16 +1,9 @@
 #include <stdint.h>
 #include <stdio.h>
-
-#ifndef M
-#define M 1
-#endif
-
-#define R 500
-#define C 300
+#include "../config.h"
 
 /**
  * This is often captured due to fmuladd operation which collapse pattern like A[i] += B[i][j] * k.
- * We can consider this as flatten recurrence
  */
 
 static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fast_rand01(void) {
@@ -22,25 +15,27 @@ static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fa
     return (float)((x >> 11) * (1.0 / 9007199254740992.0)); // 2^53, cast to float
 }
 
-static inline float __attribute__((annotate("scalar(range(-0.5, 1) final disabled)"))) rand_range(float min, float max) {
+static inline float __attribute__((annotate("scalar(range(" PB_XSTR(RMIN) ", " PB_XSTR(RMAX) ") final disabled)"))) rand_range(float min, float max) {
     return min + (max - min) * fast_rand01();
 }
 
-static inline float __attribute__((annotate("scalar(range(1, 2) final disabled)"))) rand_range2(float min, float max) {
-    return min + (max - min) * fast_rand01();
-}
-
-float data[R][C] __attribute__((annotate("scalar()")));
-float data2[R][C] __attribute__((annotate("scalar()")));
-float dest[R] __attribute__((annotate("scalar()")));
+#if OLDVRA
+float data[R][C] __attribute__((annotate("scalar(range(" PB_XSTR(RMIN) ", " PB_XSTR(RMAX) "))")));
+float data2[R][C] __attribute__((annotate("scalar(range(" PB_XSTR(RMIN) ", " PB_XSTR(RMAX) "))")));
+float dest[R] __attribute__((annotate("scalar(range(-" PB_XSTR(C) ", " PB_XSTR(C) "))")));
+#else
+float data[R][C] __attribute__((annotate("scalar(range(0,0))")));
+float data2[R][C] __attribute__((annotate("scalar(range(0,0))")));
+float dest[R] __attribute__((annotate("scalar(range(0,0))")));
+#endif
 
 int main(int argc, char const *argv[])
 {
 
     for (int i = 0; i < R; i++) {
         for (int j = 0; j < C; j++) {
-            data[i][j] = rand_range(-0.5f, 1.0f);
-            data2[i][j] = rand_range2(1.0f, 2.0f);
+            data[i][j] = rand_range(RMIN, RMAX);
+            data2[i][j] = rand_range(RMIN, RMAX);
         }
     }
 
@@ -57,7 +52,7 @@ int main(int argc, char const *argv[])
                     : "=r"(cycles_high), "=r"(cycles_low)::"%rax", "%rbx", "%rcx", "%rdx");
 
         for (int i = 0; i < R; i++) {
-            dest[i] = rand_range2(1.0f, 2.0f);
+            dest[i] = rand_range(RMIN, RMAX);
         }
 
         for (int i = 0; i < R; i++) {

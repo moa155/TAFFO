@@ -531,7 +531,7 @@ void ModuleInterpreter::resolve() {
         }
 
         ++iteration;
-        if ((MaxPropagation && iteration > MaxPropagation) || (solvedRR.size() + solvedTC == 0 && remainingUnsolvedRR > 0)) {
+        if ((MaxPropagation && iteration > MaxPropagation) || (solvedRR.size() == 0 && remainingUnsolvedRR > 0)) {
             LLVM_DEBUG(tda::log() << "Propagation interrupted: after " << iteration << " iteration(s) no fixed point reached: widening falling back remaining RR and last iteration\n");
             fallback();
             isFallback = true;
@@ -548,7 +548,7 @@ void ModuleInterpreter::resolve() {
             LLVM_DEBUG(tda::log() << "propagation iter " << iteration << " completed.\n");
             LLVM_DEBUG(tda::log() <<   "------------------------------------------------------------------------------\n\n");
         }
-    } while (solvedRR.size() + solvedTC != 0 && !isFallback);
+    } while (solvedRR.size() != 0 && !isFallback);
 
     LLVM_DEBUG(tda::log() << "saving results...\n");
     GlobalStore->saveResults(M);
@@ -1511,7 +1511,7 @@ bool ModuleInterpreter::isAffineRecurrence(VRARecurrenceInfo& VRI) {
                 if (RR) {
                     VRI.RR = RR;
                     solvedRR.push_back(VRI.root);
-                    LLVM_DEBUG(tda::log() << "recognized "<<RR->toString()<<" \n\n");
+                    LLVM_DEBUG(tda::log() << "recognized (spatial) "<<RR->toString()<<" \n\n");
                 }
             }
         }
@@ -1532,7 +1532,6 @@ bool ModuleInterpreter::isAffineRecurrence(VRARecurrenceInfo& VRI) {
 
             if (isLinearOp(RRNode) && VRI.chain.size() == 1) {
                 const auto *Call = llvm::cast<llvm::CallBase>(RRNode);
-                bool hasSameBaseLoad = false;
 
                 for (unsigned ArgIdx = 0, End = Call->arg_size(); ArgIdx < End && isSolvable; ++ArgIdx) {
                     const Value *Arg = Call->getArgOperand(ArgIdx);
@@ -1574,7 +1573,7 @@ bool ModuleInterpreter::isAffineRecurrence(VRARecurrenceInfo& VRI) {
                 if (RR) {
                     VRI.RR = RR;
                     solvedRR.push_back(VRI.root);
-                    LLVM_DEBUG(tda::log() << "recognized "<<RR->toString()<<" \n\n");
+                    LLVM_DEBUG(tda::log() << "recognized (spatial) "<<RR->toString()<<" \n\n");
                 }
             }
         }
@@ -1612,7 +1611,7 @@ bool ModuleInterpreter::isAffineRecurrence(VRARecurrenceInfo& VRI) {
                     if (RR) {
                         VRI.RR = RR;
                         solvedRR.push_back(VRI.root);
-                        LLVM_DEBUG(tda::log() << "recognized "<<RR->toString()<<" \n\n");
+                        LLVM_DEBUG(tda::log() << "recognized (temporal) "<<RR->toString()<<" \n\n");
                     }
                 }
                 return true;
@@ -2107,6 +2106,41 @@ bool ModuleInterpreter::isGeometricRecurrence(VRARecurrenceInfo& VRI) {
         else if (getBaseMemoryObject(Store->getPointerOperand()) == getBaseMemoryObject(VRI.loadJunction->getPointerOperand())) {
             const Value *StoreIdx = getIndexOperand(Store->getPointerOperand());
             const Value *LoadIdx = getIndexOperand(VRI.loadJunction->getPointerOperand());
+
+            // CASE loop extra beyond IV: for (k) A[i] = A[i] * C
+            int maxDistance = 0;
+            const llvm::Loop* maxD_L;
+            auto IVs = getInductionFromLoad(VRI.loadJunction, VFI.LI);
+            for (auto IV : IVs) {
+                auto IV_Loop = VFI.LI->getLoopFor(llvm::dyn_cast<llvm::Instruction>(IV)->getParent());
+                if (L == IV_Loop) continue;  // current loop IV
+                
+                int distance = 0;
+                const llvm::Loop *Cur = L;
+                while (Cur && Cur != IV_Loop) {
+                    ++distance;
+                    Cur = Cur->getParentLoop();
+                }
+                if (distance > maxDistance) {
+                    maxDistance = distance;
+                    maxD_L = Cur;
+                }
+            }
+
+            // currently handle just only one getParentLoop
+            if (maxDistance == 2 || (maxD_L && maxD_L->getParentLoop())) {
+
+                if (auto *latch = L->getLoopLatch()) {
+                    auto LatchAnalyzer = VFI.scope.BBAnalyzers[latch];
+                    std::shared_ptr<RangedRecurrence> RR = LatchAnalyzer->buildGeometricFlattingRecurrence(VRI, Store);
+                    if (RR) {
+                        VRI.RR = RR;
+                        solvedRR.push_back(VRI.root);
+                        LLVM_DEBUG(tda::log() << "recognized (temporal) "<<RR->toString()<<" \n\n");
+                    }
+                }
+                return true;
+            }
 
             int64_t StoreOff = 0;
             int64_t LoadOff = 0;

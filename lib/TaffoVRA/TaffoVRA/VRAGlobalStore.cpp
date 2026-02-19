@@ -73,6 +73,7 @@ static void dropTooHighRangesHard(const std::shared_ptr<taffo::ValueInfoWithRang
       });
 
       SI->range = nullptr;  // <-- SET NULL
+      SI->conversionEnabled = false;
     }
     return;
   }

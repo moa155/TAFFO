@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include "../config.h"
 
-
 static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fast_rand01(void) {
     static uint64_t state = 0xC0FFEE1234ULL;
     state ^= state >> 12;
@@ -12,31 +11,34 @@ static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fa
     return (float)((x >> 11) * (1.0 / 9007199254740992.0)); // 2^53, cast to float
 }
 
-static inline float __attribute__((annotate("scalar(range(" PB_XSTR(RMIN_POS) ", " PB_XSTR(RMAX_POS) ") final disabled)"))) rand_range(float min, float max) {
+static inline float __attribute__((annotate("scalar(range(" PB_XSTR(RMIN) ", " PB_XSTR(RMAX) ") final disabled)"))) rand_range(float min, float max) {
     return min + (max - min) * fast_rand01();
 }
 
-float src_left[R] __attribute__((annotate("scalar(range(" PB_XSTR(RMIN_POS) ", " PB_XSTR(RMAX_POS) "))")));
-float src_right[R] __attribute__((annotate("scalar(range(" PB_XSTR(RMIN_POS) ", " PB_XSTR(RMAX_POS) "))")));
-
 #if OLDVRA
-float left[R] __attribute__((annotate("scalar(range(1, 10000))")));
-float right[R] __attribute__((annotate("scalar(range(1, 10000))")));
+float data[R][C] __attribute__((annotate("scalar(range(" PB_XSTR(RMIN) ", " PB_XSTR(RMAX) "))")));
 #else
-float left[R] __attribute__((annotate("scalar(range(1,1))")));
-float right[R] __attribute__((annotate("scalar(range(1,1))")));
+float data[R][C] __attribute__((annotate("scalar(range(0,0))")));
 #endif
 
 int main(int argc, char const *argv[])
 {
 
-    for (int i = 0; i < R_SMALL; i++) {
-        src_left[i] = rand_range(RMIN_POS, RMAX_POS);
-        src_right[i] = rand_range(RMIN_POS, RMAX_POS);
+    #if OLDVRA
+    float acc_gt[1] __attribute__((annotate("scalar(range(-75000, 150000))")));
+    float acc[R] __attribute__((annotate("scalar(range(-800, 800))")));
+    #else
+    float acc_gt[1] __attribute__((annotate("scalar(range(0,0))")));
+    float acc[R] __attribute__((annotate("scalar(range(0,0))")));
+    #endif
+
+    for (int i = 0; i < R; i++) {
+        for (int j = 0; j < C; j++) {
+            data[i][j] = rand_range(RMIN, RMAX);
+        }
     }
 
-    float ratio1 = rand_range(RMIN_POS, RMAX_POS);
-    float ratio2 = rand_range(RMIN_POS, RMAX_POS);
+    float incr1 = rand_range(RMIN, RMAX);
 
     for (int m = 0; m < M; ++m) {
         uint32_t cycles_high1 = 0;
@@ -44,22 +46,31 @@ int main(int argc, char const *argv[])
         uint32_t cycles_low = 0;
         uint32_t cycles_low1 = 0;
 
-        for (int i = 0; i < R_SMALL; i++) {
-            left[i] = src_left[i];
-            right[i] = src_right[i];
-        }
-
         asm volatile("CPUID\n\t"
                     "RDTSC\n\t"
                     "mov %%edx, %0\n\t"
                     "mov %%eax, %1\n\t"
                     : "=r"(cycles_high), "=r"(cycles_low)::"%rax", "%rbx", "%rcx", "%rdx");
 
-                    
-        for (int i = 1; i < R_SMALL; i++) {
-            left[i] = right[i-1] * ratio1;
-            right[i] = left[i-1] * ratio2;
+        #if OLDVRA
+        float __attribute__((annotate("scalar(range(-75000, 150000))"))) grand_tot = 0;
+        #else
+        float __attribute__((annotate("scalar(range(0,0))"))) grand_tot = 0;
+        #endif
+
+        for (int i = 0; i < R; i++) {
+            acc[i] = 0;
+            for (int j = 0; j < C; j++) {
+                acc[i] += data[i][j];
+            }
+            acc[i] += incr1;
         }
+
+        for (int i = 1; i < R; i++) {
+            grand_tot += acc[i];
+        }
+
+        acc_gt[0] = grand_tot;  //bring outside
 
         asm volatile("RDTSCP\n\t"
                  "mov %%edx, %0\n\t"
@@ -73,10 +84,9 @@ int main(int argc, char const *argv[])
     }
 
     printf("Values Begin\n");
-    for (int j = 0; j < R_SMALL; ++j) {
-        printf("%f\n", left[j]);
-        printf("%f\n", right[j]);
-    }
+    for (int j = 0; j < R; ++j)
+        printf("%f\n", acc[j]);
+    printf("%f\n", acc_gt[0]);
     printf("Values End\n");
 
     return 0;

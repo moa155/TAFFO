@@ -1156,9 +1156,19 @@ std::shared_ptr<taffo::RangedRecurrence> VRAnalyzer::buildAffineFlattingRecurren
 std::shared_ptr<taffo::RangedRecurrence> VRAnalyzer::buildGeometricFlattingRecurrence(VRARecurrenceInfo VRI, const llvm::StoreInst* Store) {
 
   auto StartRange = getRange(getNode(VRI.loadJunction));
-  auto RatioRange = getRange(getNode(VRI.loadHigherDim));
 
-  RatioRange = handleDiv(RatioRange, StartRange);
+  std::shared_ptr<Range> RatioRange;
+
+  if (VRI.loadHigherDim) {
+    RatioRange = getRange(getNode(VRI.loadHigherDim));
+  } else {
+    RatioRange = extractDeltaFromStoreValue(Store->getValueOperand(), VRI.loadJunction, Store);
+    if (!RatioRange) {
+      //fallback valid for geo
+      auto NextRange = getRange(getNode(Store->getValueOperand()));
+      RatioRange = handleDiv(NextRange, StartRange);
+    }
+  }
 
   return std::make_shared<GeometricFlattenedRangedRecurrence>(std::move(StartRange), std::move(RatioRange));
 }

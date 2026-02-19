@@ -1,12 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
-
-#ifndef M
-#define M 1
-#endif
-
-#define R 500
-#define C 300
+#include "../config.h"
 
 static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fast_rand01(void) {
     static uint64_t state = 0xC0FFEE1234ULL;
@@ -17,23 +11,35 @@ static inline float __attribute__((annotate("scalar(range(0, 1) disabled)"))) fa
     return (float)((x >> 11) * (1.0 / 9007199254740992.0)); // 2^53, cast to float
 }
 
-static inline float __attribute__((annotate("scalar(range(-0.5, 1) final disabled)"))) rand_range(float min, float max) {
+static inline float __attribute__((annotate("scalar(range(" PB_XSTR(RMIN) ", " PB_XSTR(RMAX) ") final disabled)"))) rand_range(float min, float max) {
     return min + (max - min) * fast_rand01();
 }
 
-float data[R][C] __attribute__((annotate("scalar()")));
+#if OLDVRA
+float data[R][C] __attribute__((annotate("scalar(range(-" PB_XSTR(R) ", " PB_XSTR(R) "))")));
+#else
+float data[R][C] __attribute__((annotate("scalar(range(0,0))")));
+#endif
 
 int main(int argc, char const *argv[])
 {
 
-    float __attribute__((annotate("scalar(range(0, 0))"))) sum_gt[1];
-    float __attribute__((annotate("scalar(range(0, 0))"))) acc_gt[1];
+    #if OLDVRA
+    float sum_gt[1] __attribute__((annotate("scalar(range(-75000, 150000))")));
+    float acc_gt[1] __attribute__((annotate("scalar(range(-75000, 150000))")));
+    #else
+    float sum_gt[1] __attribute__((annotate("scalar(range(0,0))")));
+    float acc_gt[1] __attribute__((annotate("scalar(range(0,0))")));
+    #endif
 
     for (int i = 0; i < R; i++) {
         for (int j = 0; j < C; j++) {
-            data[i][j] = rand_range(-0.5f, 1.0f);
+            data[i][j] = rand_range(RMIN, RMAX);
         }
     }
+
+    float incr1 = rand_range(RMIN, RMAX);
+    float incr2 = rand_range(RMIN, RMAX);
 
     for (int m = 0; m < M; ++m) {
         uint32_t cycles_high1 = 0;
@@ -47,14 +53,20 @@ int main(int argc, char const *argv[])
                     "mov %%eax, %1\n\t"
                     : "=r"(cycles_high), "=r"(cycles_low)::"%rax", "%rbx", "%rcx", "%rdx");
 
-        float __attribute__((annotate("scalar()"))) sum = 0;
-        float __attribute__((annotate("scalar()"))) acc = 0;
+        #if OLDVRA
+        float sum __attribute__((annotate("scalar(range(-75000, 150000))"))) = 0;
+        float acc __attribute__((annotate("scalar(range(-75000, 150000))"))) = 0;
+        #else
+        float sum __attribute__((annotate("scalar(range(0,0))"))) = 0;
+        float acc __attribute__((annotate("scalar(range(0,0))"))) = 0;
+        #endif
+
         for (int i = 0; i < R; i++) {
             for (int j = 0; j < C; j++) {
-                sum += 3;
+                sum += incr1;
                 acc += data[i][j];
             }
-            sum -= 1;
+            sum -= incr2;
         }
 
         sum_gt[0] = sum;
@@ -72,8 +84,6 @@ int main(int argc, char const *argv[])
     }
 
     printf("Values Begin\n");
-    // for (int j = 0; j < R; ++j)
-    //     printf("%f\n", acc[j]);
     printf("%f\n", sum_gt[0]);
     printf("%f\n", acc_gt[0]);
     printf("Values End\n");

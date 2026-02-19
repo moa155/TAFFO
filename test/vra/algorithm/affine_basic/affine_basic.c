@@ -1,11 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
-
-#ifndef M
-#define M 1
-#endif
-
-#define N 500
+#include "../config.h"
 
 static inline double __attribute__((annotate("scalar(range(0, 1) disabled)"))) fast_rand01(void) {
     static uint64_t state = 0xC0FFEE1234ULL;
@@ -16,25 +11,30 @@ static inline double __attribute__((annotate("scalar(range(0, 1) disabled)"))) f
     return (x >> 11) * (1.0 / 9007199254740992.0); // 2^53
 }
 
-static inline float __attribute__((annotate("scalar(range(-0.5, 1) final disabled)"))) rand_range(float min, float max) {
+static inline float __attribute__((annotate("scalar(range(" PB_XSTR(RMIN) ", " PB_XSTR(RMAX) ") final disabled)"))) rand_range(float min, float max) {
     return (float)(min + (max - min) * fast_rand01());
 }
 
-float arr[N] __attribute__((annotate("scalar()")));
-
-float foo(float x, float y) {
-    return x + y;
-}
+#if OLDVRA
+float arr[R] __attribute__((annotate("scalar(range(-" PB_XSTR(R) ", " PB_XSTR(R) "))")));
+#else
+float arr[R] __attribute__((annotate("scalar()")));
+#endif
 
 int main(int argc, char const *argv[])
 {
+    #if OLDVRA
+    float acc_gt[2] __attribute__((annotate("scalar(range(-" PB_XSTR(R) ", " PB_XSTR(R) "))")));
+    #else
+    float acc_gt[2] __attribute__((annotate("scalar()")));
+    #endif
 
-    float __attribute__((annotate("scalar(range(0,0))"))) acc_gt[3];
-    float __attribute__((annotate("scalar(range(0,0))"))) res[N];
-
-    for (int i = 0; i < N; i++) {
-        arr[i] = rand_range(-0.5f, 1.0f);
+    for (int i = 0; i < R; i++) {
+        arr[i] = rand_range(RMIN, RMAX);
     }
+
+    float incr1 = rand_range(RMIN, RMAX);
+    float incr2 = rand_range(RMIN, RMAX);
 
     for (int m = 0; m < M; ++m) {
         uint32_t cycles_high1 = 0;
@@ -48,27 +48,25 @@ int main(int argc, char const *argv[])
                     "mov %%eax, %1\n\t"
                     : "=r"(cycles_high), "=r"(cycles_low)::"%rax", "%rbx", "%rcx", "%rdx");
 
-        float __attribute__((annotate("scalar()"))) add = 0.0020233;
-        float __attribute__((annotate("scalar()"))) sub = 0.0060251;
-        float __attribute__((annotate("scalar()"))) tot = 0.0231249;
+        #if OLDVRA
+        float add __attribute__((annotate("scalar(range(-" PB_XSTR(R) ", " PB_XSTR(R) "))"))) = 0;
+        float sub __attribute__((annotate("scalar(range(-" PB_XSTR(R) ", " PB_XSTR(R) "))"))) = 0;
+        #else
+        float add __attribute__((annotate("scalar()"))) = 0;
+        float sub __attribute__((annotate("scalar()"))) = 0;
+        #endif
 
         for (int i = 0; i < N; i++) {
-
-            add += 0.021f;
-            sub -= 0.011f;
-
-            tot += arr[i];
-            res[i] = foo(0.5f,0.75f);
-        
+            add += incr1;
+            sub -= incr2;
         }
 
-        for (int i = 1; i < N; i++) {
-            res[i] = res[i - 1] - 0.002f;
+        for (int i = 1; i < R; i++) {
+            arr[i] = arr[i - 1] + incr1;
         }
 
         acc_gt[0] = add;
         acc_gt[1] = sub;
-        acc_gt[2] = tot;
 
         asm volatile("RDTSCP\n\t"
                  "mov %%edx, %0\n\t"
@@ -82,11 +80,10 @@ int main(int argc, char const *argv[])
     }
 
     printf("Values Begin\n");
-    for (int j = 0; j < N; ++j)
-        printf("%f\n", res[j]);
+    for (int j = 0; j < R; ++j)
+        printf("%f\n", arr[j]);
     printf("%f\n", acc_gt[0]);
     printf("%f\n", acc_gt[1]);
-    printf("%f\n", acc_gt[2]);
     printf("Values End\n");
 
     return 0;
