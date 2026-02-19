@@ -20,7 +20,7 @@ include(AddLLVM)
 include(LLVMConfig)
 include(HandleLLVMOptions)
 
-if((${LLVM_VERSION_MAJOR} LESS 18) OR (${LLVM_VERSION_MAJOR} GREATER 18))
+if((${LLVM_VERSION_MAJOR} LESS 17) OR (${LLVM_VERSION_MAJOR} GREATER 21))
   message(FATAL_ERROR
     " LLVM version ${LLVM_VERSION_MAJOR} is not supported!\n"
     " LLVM found at path: ${LLVM_DIR}")
@@ -52,13 +52,15 @@ if (TAFFO_UNITTESTS)
   add_subdirectory(unittests)
 endif()
 
-# Set project git hooks
-set(PROJECT_GIT_HOOKS_DIR "${CMAKE_SOURCE_DIR}/.githooks")
-execute_process(
-  COMMAND git config --local core.hooksPath "${PROJECT_GIT_HOOKS_DIR}"
-  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-  RESULT_VARIABLE _git_cfg_res
-)
-if(NOT _git_cfg_res EQUAL 0)
-  message(WARNING "Failed to set core.hooksPath (exit code ${_git_cfg_res})")
+# Set project git hooks only outside CI
+if(NOT DEFINED ENV{GITHUB_WORKSPACE})
+  set(PROJECT_GIT_HOOKS_DIR "${CMAKE_SOURCE_DIR}/.githooks")
+  execute_process(
+    COMMAND git config --local core.hooksPath "${PROJECT_GIT_HOOKS_DIR}"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    RESULT_VARIABLE _git_cfg_res
+  )
+  if(NOT _git_cfg_res EQUAL 0)
+    message(WARNING "Failed to set core.hooksPath (exit code ${_git_cfg_res})")
+  endif()
 endif()
