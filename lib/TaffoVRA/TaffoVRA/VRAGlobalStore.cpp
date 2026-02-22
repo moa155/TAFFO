@@ -72,8 +72,7 @@ static void dropTooHighRangesHard(const std::shared_ptr<taffo::ValueInfoWithRang
                      << SI->range->max << "]\n";
       });
 
-      SI->range = nullptr;  // <-- SET NULL
-      SI->conversionEnabled = false;
+      SI->range = Range::Top().clone();
     }
     return;
   }
