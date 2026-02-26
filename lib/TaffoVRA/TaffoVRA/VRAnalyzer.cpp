@@ -6,6 +6,7 @@
 
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/Support/Debug.h>
+#include <llvm/IR/Operator.h>
 
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/Analysis/IVDescriptors.h>
