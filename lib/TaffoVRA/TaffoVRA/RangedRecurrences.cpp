@@ -22,23 +22,12 @@ inline std::string rangeToString(const std::shared_ptr<Range>& R) {
 
 // ================= Base helpers =================
 
-std::shared_ptr<Range>
-RangedRecurrence::scaleByUInt(const std::shared_ptr<Range>& A, std::uint64_t k) {
+std::shared_ptr<Range> RangedRecurrence::scaleByUInt(const std::shared_ptr<Range>& A, std::uint64_t k) {
   return handleMul(A, Range::Point(llvm::APFloat(static_cast<double>(k))).clone());
 }
 
-std::shared_ptr<Range>
-RangedRecurrence::scaleByDouble(const std::shared_ptr<Range>& A, double c) {
+std::shared_ptr<Range> RangedRecurrence::scaleByDouble(const std::shared_ptr<Range>& A, double c) {
   return handleMul(A, Range::Point(llvm::APFloat(c)).clone());
-}
-
-std::shared_ptr<Range>
-RangedRecurrence::fallbackAccInclusive(std::uint64_t N) const {
-  auto acc = Range::Point(llvm::APFloat(0.0)).clone();
-  for (std::uint64_t t = 0; t <= N; ++t) {
-    acc = handleAdd(acc, this->at(t));
-  }
-  return acc;
 }
 
 // ================= Init =========================
@@ -324,16 +313,11 @@ std::shared_ptr<Range> LinearRangedRecurrence::at(std::uint64_t i) const {
   if (!Start || !A || !B)
     return nullptr;
 
-  // x_0 = Start
   auto cur = Start->clone();
 
-  // Se i==0, restituiamo subito
   if (i == 0)
     return cur;
 
-  // Iterazione naive:
-  //   x_{k+1} = A * x_k + B
-  // per k = 0..i-1
   for (std::uint64_t k = 0; k < i; ++k) {
     // prod = A * cur
     auto prod = taffo::handleMul(A, cur);

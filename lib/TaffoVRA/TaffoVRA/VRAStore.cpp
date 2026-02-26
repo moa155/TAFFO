@@ -162,7 +162,15 @@ std::shared_ptr<ScalarInfo> VRAStore::assignScalarRange(const std::shared_ptr<Va
   if (scalarDst->isFinal())
     return scalarDst;
 
-  std::shared_ptr<Range> unionRange = scalarDst->range->join(scalarSrc->range);
+  std::shared_ptr<Range> unionRange;
+  if (scalarDst->range && scalarSrc->range)
+    unionRange = scalarDst->range->join(scalarSrc->range);
+  else if (scalarDst->range)
+    unionRange = scalarDst->range->clone();
+  else if (scalarSrc->range)
+    unionRange = scalarSrc->range->clone();
+  else
+    return scalarDst;
   return std::make_shared<ScalarInfo>(nullptr, unionRange);
 }
 

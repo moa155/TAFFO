@@ -46,11 +46,9 @@ STATISTIC(NumRecurrenceUnsolved, "Number of unsolved recurrences");
 
 #define DEFINE_RR_STATS_FOR_ORIGIN(ORIGIN, LABEL)                          \
   namespace {                                                              \
-  /* NOLINTNEXTLINE */                                                     \
   VRA_RR_KIND_LIST                                                         \
   }                                                                        
 
-// Create STATISTIC variables for each origin/kind pair.
 #define X(K) STATISTIC(NumPhi##K##Recurrence, "Number of phi " #K " recurrences detected");
 DEFINE_RR_STATS_FOR_ORIGIN(Phi, "phi");
 #undef X
@@ -62,8 +60,7 @@ DEFINE_RR_STATS_FOR_ORIGIN(Mem, "mem");
 #undef DEFINE_RR_STATS_FOR_ORIGIN
 #undef VRA_RR_KIND_LIST
 
-static Statistic &getRecurrenceStat(const std::string &Origin,
-                                    taffo::RangedRecurrence::Kind K) {
+static Statistic &getRecurrenceStat(const std::string &Origin, taffo::RangedRecurrence::Kind K) {
     using Kind = taffo::RangedRecurrence::Kind;
 
     if (Origin == "phi") {
@@ -100,9 +97,6 @@ static Statistic &getRecurrenceStat(const std::string &Origin,
         }
     }
 
-    // All currently supported recurrences are keyed either as "phi" or
-    // "mem". If we ever reach this point, it means a new origin was added
-    // without wiring a statistic; fail loudly to avoid silent UB.
     llvm_unreachable("Unhandled recurrence origin in getRecurrenceStat");
 }
 
@@ -137,6 +131,9 @@ static SmallVector<Loop*> getLoopsInnermostFirst(Function *F, LoopInfo &LI) {
   return Result;
 }
 
+/// @brief check if binary is valid for affine (on recurrence main path)
+/// @param V value (binary instr) to analyze
+/// @return true if this op is affine compatible
 static bool isAffineBinaryOp(const Value* V) {
     const auto *BO = llvm::dyn_cast<llvm::BinaryOperator>(V);
     if (!BO) return false;
@@ -145,6 +142,9 @@ static bool isAffineBinaryOp(const Value* V) {
     return opc == llvm::Instruction::Add || opc == llvm::Instruction::Sub || opc == llvm::Instruction::FAdd || opc == llvm::Instruction::FSub;
 }
 
+/// @brief check if binary is valid for geometric (on recurrence main path)
+/// @param V value (binary instr) to analyze
+/// @return true if this op is geometric compatible
 static bool isGeometricBinaryOp(const Value* V) {
     const auto *BO = llvm::dyn_cast<llvm::BinaryOperator>(V);
     if (!BO) return false;
@@ -161,13 +161,15 @@ static bool isGeometricBinaryOp(const Value* V) {
     }
 }
 
+/// @brief Be careful, muladd is often affine ( a[i] += b[i] * x)
+/// @param V value (binary instr) to analyze
+/// @return true if this op is linear compatible op
 static bool isLinearOp(const llvm::Value* V) {
     const auto *Call = llvm::dyn_cast<llvm::CallBase>(V);
     if (!Call) return false;
 
     if (const auto *IF = Call->getCalledFunction()) {
         if (IF->isIntrinsic() && IF->getIntrinsicID() == llvm::Intrinsic::fmuladd) {
-            // Accept both float and double overloads for speed-critical fused multiply-add.
             const llvm::Type *Ty = Call->getType();
             if (Ty && (Ty->isFloatTy() || Ty->isDoubleTy()))
                 return true;
@@ -238,6 +240,9 @@ static void printBaseOp(llvm::raw_ostream &OS, const llvm::Value *Ptr) {
     }
 }
 
+/// @brief Clear mamory print => load/store(basemem)
+/// @param OS 
+/// @param V 
 static void printValue(llvm::raw_ostream &OS, const llvm::Value *V) {
     if (!V) return;
 
@@ -290,6 +295,10 @@ static std::string recurrenceKindLabel(taffo::RangedRecurrence::Kind K) {
     }
 }
 
+/// @brief Implemented until 2D: retrieve all PHI Values refer to vectors indexes. Walk over parent loops.
+/// @param LI load instruction
+/// @param LIInfo llvm::LoopInfo
+/// @return vector with all retrieved PHI Values
 static std::vector<const llvm::Value *> getInductionFromLoad(const llvm::LoadInst *LI, const llvm::LoopInfo *LIInfo) {
   std::vector<const llvm::Value *> Result;
   if (!LIInfo) return Result;
@@ -422,7 +431,6 @@ static std::vector<const llvm::Value *> getInductionFromLoad(const llvm::LoadIns
 
   return Result;
 }
-
 
 std::shared_ptr<AnalysisStore> ModuleInterpreter::getStoreForValue(const llvm::Value* V) const {
     assert(V && "Trying to get AnalysisStore for null value.");
@@ -1472,6 +1480,7 @@ bool ModuleInterpreter::isAffineRecurrence(VRARecurrenceInfo& VRI) {
         bool isSolvable = VRI.chain.size() > 0;
         for (const auto* RRNode : VRI.chain) {
             
+            // handling of muladd affine
             if (isLinearOp(RRNode) && VRI.chain.size() == 1) {
                 const auto *Call = llvm::cast<llvm::CallBase>(RRNode);
 
@@ -1494,6 +1503,7 @@ bool ModuleInterpreter::isAffineRecurrence(VRARecurrenceInfo& VRI) {
             return true;
         }
         
+        // pattern sum += a[i] * x
         if (VRI.loadHigherDim && isMulAdd) {
             if (auto *latch = L->getLoopLatch()) {
                 auto LatchAnalyzer = VFI.scope.BBAnalyzers[latch];
@@ -1504,7 +1514,9 @@ bool ModuleInterpreter::isAffineRecurrence(VRARecurrenceInfo& VRI) {
                     LLVM_DEBUG(tda::log() << "recognized "<<RR->toString()<<" \n\n");
                 }
             }
-        } else if (VRI.loadHigherDim) {
+        } 
+        // pattern sum += a[i]
+        else if (VRI.loadHigherDim) { 
             if (auto *latch = L->getLoopLatch()) {
                 auto LatchAnalyzer = VFI.scope.BBAnalyzers[latch];
                 std::shared_ptr<RangedRecurrence> RR = LatchAnalyzer->buildPHIAffineFlattingRecurrence(VRI, PN);
@@ -1515,6 +1527,8 @@ bool ModuleInterpreter::isAffineRecurrence(VRARecurrenceInfo& VRI) {
                 }
             }
         }
+        
+        // pattern a += x
         else if (auto *latch = L->getLoopLatch()) {
             auto LatchAnalyzer = VFI.scope.BBAnalyzers[latch];
             std::shared_ptr<RangedRecurrence> RR = LatchAnalyzer->buildAffinePHIRecurrence(PN);
@@ -1552,7 +1566,7 @@ bool ModuleInterpreter::isAffineRecurrence(VRARecurrenceInfo& VRI) {
             return true;
         }
         
-        // affine case 1: muladd op
+        // pattern a[i] += b[i][j] * x
         if (VRI.loadHigherDim && isMulAdd) {
             if (auto *latch = L->getLoopLatch()) { 
                 auto LatchAnalyzer = VFI.scope.BBAnalyzers[latch];
@@ -1565,7 +1579,7 @@ bool ModuleInterpreter::isAffineRecurrence(VRARecurrenceInfo& VRI) {
             }
         } else 
 
-        // affine case 2: load from higher dimensional array
+        // pattern a[i] += b[i][j]
         if (VRI.loadHigherDim) {
             if (auto *latch = L->getLoopLatch()) {
                 auto LatchAnalyzer = VFI.scope.BBAnalyzers[latch];
@@ -2057,6 +2071,7 @@ bool ModuleInterpreter::isGeometricRecurrence(VRARecurrenceInfo& VRI) {
             return true;
         }
 
+        // pattern acc *= a[i];
         if (VRI.loadHigherDim) {
             if (auto *latch = L->getLoopLatch()) {
                 auto LatchAnalyzer = VFI.scope.BBAnalyzers[latch];
@@ -2068,6 +2083,8 @@ bool ModuleInterpreter::isGeometricRecurrence(VRARecurrenceInfo& VRI) {
                 }
             }
         }
+
+        // pattern acc *= x;
         else if (auto *latch = L->getLoopLatch()) {
             auto LatchAnalyzer = VFI.scope.BBAnalyzers[latch];
             std::shared_ptr<RangedRecurrence> RR = LatchAnalyzer->buildGeometricPHIRecurrence(PN);
@@ -2092,6 +2109,7 @@ bool ModuleInterpreter::isGeometricRecurrence(VRARecurrenceInfo& VRI) {
             return true;
         }
         
+        // pattern a[i] *= b[i][j];
         if (VRI.loadHigherDim) {
             if (auto *latch = L->getLoopLatch()) {
                 auto LatchAnalyzer = VFI.scope.BBAnalyzers[latch];
@@ -2103,6 +2121,7 @@ bool ModuleInterpreter::isGeometricRecurrence(VRARecurrenceInfo& VRI) {
                 }
             }
         }
+
         else if (getBaseMemoryObject(Store->getPointerOperand()) == getBaseMemoryObject(VRI.loadJunction->getPointerOperand())) {
             const Value *StoreIdx = getIndexOperand(Store->getPointerOperand());
             const Value *LoadIdx = getIndexOperand(VRI.loadJunction->getPointerOperand());
@@ -2316,8 +2335,6 @@ bool ModuleInterpreter::isFakeRecurrence(VRARecurrenceInfo& VRI) {
                 LLVM_DEBUG(tda::log() << "\t\t\tRR is not solvale yet: it depends on other unsolved recurrences\n");
                 return true;
             }
-
-            // Possiamo usare lo scope allo stato Sn il quale è stato già oggetto di preseeding (S1) oppure propagation (St con t num iterazioni)
 
             if (auto *latch = L->getLoopLatch()) {
                 auto LatchAnalyzer = VFI.scope.BBAnalyzers[latch];
@@ -2560,11 +2577,9 @@ void ModuleInterpreter::walk(llvm::Loop* L) {
         for (const llvm::Instruction& CI : *curBlock) {
             llvm::Instruction &I = const_cast<llvm::Instruction &>(CI);
 
-            // caso ricorrenza (conosciuta o non)
             if (FNs[curFn.back()].RRs.count(&I) && curLoop) {
                 VRARecurrenceInfo& VRI = FNs[curFn.back()].RRs[&I];
                 
-                //ricorrenza risolta al trip count X, se non è cambiato ricicla
                 if (VRI.lastRange && VRI.lastRangeComputedAt >= FNs[curFn.back()].loops[curLoop].TripCount) {
                     CurAnalyzer->retrieveSolvedRecurrence(&I, VFI.RRs[&I]);
                 } else {

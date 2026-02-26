@@ -62,8 +62,6 @@ public:
   static std::shared_ptr<Range> scaleByUInt(const std::shared_ptr<Range>& A, std::uint64_t k);
   static std::shared_ptr<Range> scaleByDouble(const std::shared_ptr<Range>& A, double c);
 
-  // Fallback “sum of at(t)” sound e semplice
-  std::shared_ptr<Range> fallbackAccInclusive(std::uint64_t N) const;
 };
 
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream& OS, const RangedRecurrence& R) {

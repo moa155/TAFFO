@@ -27,7 +27,7 @@ enum class TripCountReason {
     Unknown = 0,
     DeducedBySCEV,
     HeuristicFallback
-    // (slot futuri) UserHint, BoundedByGuard, ecc.
+    // (future slots) UserHint, BoundedByGuard, ecc.
 };
 
 struct VRALoopInfo {
@@ -39,6 +39,9 @@ struct VRALoopInfo {
 
     llvm::SmallVector<llvm::BasicBlock*> bbFlow;
 
+    /// @brief check if this value is invariant w.r.t. this loop
+    /// @param V llvm::Value to analyze
+    /// @return true when it is invariant
     bool isInvariant(const llvm::Value* V) { 
 
         if (!V) return true;
@@ -88,15 +91,15 @@ struct VRARecurrenceInfo {
     VRAInspectionKind kind;
 
     // reference to build specialized affine/geo recurrence
-    const llvm::LoadInst* loadJunction = nullptr;
-    const llvm::LoadInst* loadHigherDim = nullptr;
-    const llvm::Value* innerRR = nullptr;
+    const llvm::LoadInst* loadJunction = nullptr;           // load which correspond the same basemem of the store
+    const llvm::LoadInst* loadHigherDim = nullptr;          // load from other base mem but with higher dimension (for flattened)
+    const llvm::Value* innerRR = nullptr;                   // used for collect nested RR (delta)
 
     llvm::SmallVector<llvm::Function*> depsOnFn;
     llvm::SmallVector<llvm::Value*> depsOnRR;
 
     std::shared_ptr<RangedRecurrence> RR = nullptr;
-    std::shared_ptr<Range> lastRange = nullptr;
+    std::shared_ptr<Range> lastRange = nullptr;             // cache to avoid new computation, exspecially when lastRangeComputedAt is not increased (common case)
     u_int64_t lastRangeComputedAt = 0;
 
     VRARecurrenceInfo(): root(nullptr) {}
@@ -105,6 +108,7 @@ struct VRARecurrenceInfo {
     std::string chainToString();
 };
 
+/// @brief Assignations are useful for composed recurrence (like crossing in this work)
 struct VRAAssignationInfo : public VRARecurrenceInfo {
     VRAAssignationInfo() : VRARecurrenceInfo() { kind = VRAInspectionKind::ASSIGN; }
     VRAAssignationInfo(const llvm::Value* root) : VRARecurrenceInfo(root) { kind = VRAInspectionKind::ASSIGN; }
@@ -116,8 +120,7 @@ struct VRAAssignationInfo : public VRARecurrenceInfo {
     }
 };
 
-// Utility used by both VRAnalyzer and ModuleInterpreter to peel off pointer casts
-// and find the originating memory object for a given pointer.
+// Utility used by both VRAnalyzer and ModuleInterpreter to peel off pointer casts and find the originating memory object for a given pointer.
 const llvm::Value* getBaseMemoryObject(const llvm::Value* Ptr);
 
 struct VRAFunctionInfo {
@@ -127,9 +130,6 @@ struct VRAFunctionInfo {
     llvm::DenseMap<const llvm::Value*, VRARecurrenceInfo> RRs;
     llvm::DenseMap<const llvm::Value*, VRAAssignationInfo> ASs;
     FunctionScope scope;
-
-    std::shared_ptr<Range> lastRange;
-    llvm::DenseMap<llvm::Value*, std::shared_ptr<Range>> lastRangeArgs;
 
     llvm::DominatorTree* DT = nullptr;
     llvm::LoopInfo* LI = nullptr;
@@ -179,6 +179,9 @@ public:
     const RecurrenceSummary& getRecurrenceSummary() const { return RecSummary; }
     void printRecurrenceSummary(llvm::raw_ostream &OS) const;
 
+    /// @brief get specific recurrence info (if any) from its root
+    /// @param root llvm::Value* root of the recurrence
+    /// @return VRARecurrenceInfo obj if exists or nullptr
     VRARecurrenceInfo* getVRARecurrenceInfo(const llvm::Value* root) {
         for (auto &FEntry : FNs) {
             auto &VFI = FEntry.second;
@@ -188,6 +191,9 @@ public:
         return nullptr;
     }
 
+    /// @brief get specific function info (if any) from its llvm::Function*
+    /// @param F llvm::Function* pointer
+    /// @return VRAFunctionInfo obj if exists or nullptr
     VRAFunctionInfo* getVRAFunctionInfo(llvm::Function* F) {
         if (FNs.count(F)) {
             return &FNs[F];
@@ -195,9 +201,12 @@ public:
         return nullptr;
     }
 
-
+    /// @brief retrieve last range stored for specific base memory
+    /// @param BaseStore base memory
+    /// @return range stored if any or nullptr
     std::shared_ptr<Range> getLastStoredRange(const llvm::Value* BaseStore);
 
+    /// @brief run algorithm for this module
     void interpret();
 
     // method to embed fixed-point loop and avoid recall preseed and inspect
@@ -212,7 +221,6 @@ protected:
     void interpretFunction(llvm::Function* F, std::shared_ptr<AnalysisStore> FunctionStore = nullptr);
     FollowingPathResponse followPath(VRAFunctionInfo info, llvm::BasicBlock* src, llvm::BasicBlock* dst, llvm::SmallVector<llvm::Loop*> nesting) const;
     void interpretCall(std::shared_ptr<CodeAnalyzer> CurAnalyzer, llvm::Instruction* I);
-    
     void updateSuccessorAnalyzer(std::shared_ptr<CodeAnalyzer> CurrentAnalyzer, llvm::Instruction* TermInstr, unsigned SuccIdx);
 
     // 2) INSPECTION PHASE METHODS
@@ -221,7 +229,7 @@ protected:
     void handlePHIChain(VRAFunctionInfo VFI, llvm::Loop* L, const llvm::PHINode* PHI, VRARecurrenceInfo& VRI);
     void handleStoreChain(VRAFunctionInfo VFI, llvm::Loop* L, const llvm::StoreInst* Store, VRARecurrenceInfo& VRI);
 
-    // LATTEX - RESOLUTION METHODS
+    // LATTICE - RESOLUTION METHODS FOR CALLS
     void resolveFunction(llvm::Function* F, std::shared_ptr<AnalysisStore> FunctionStore = nullptr);
     void resolveCall(std::shared_ptr<CodeAnalyzer> CurAnalyzer, llvm::Instruction* I);
     
@@ -234,19 +242,18 @@ protected:
 
     bool isFakeRecurrence(VRARecurrenceInfo& VRI);
 
-    bool isAffineRecurrence(VRARecurrenceInfo& VRI);
+    bool isAffineRecurrence(VRARecurrenceInfo& VRI);            // basic, flattened (T,S)
     bool isDeltaAffineRecurrence(VRARecurrenceInfo& VRI);
     bool isCrossingAffineRecurrence(VRAAssignationInfo& VRI);
 
-    bool isGeometricRecurrence(VRARecurrenceInfo& VRI);
+    bool isGeometricRecurrence(VRARecurrenceInfo& VRI);         // basic, flattened (T,S)   
     bool isDeltaGeometricRecurrence(VRARecurrenceInfo& VRI);
     bool isCrossingGeometricRecurrence(VRAAssignationInfo& VRI);
 
     bool isLinearRecurrence(VRARecurrenceInfo& VRI);
-
-    void fallbackRecurrence(VRARecurrenceInfo& VRI);
     // add here new recurrences...
 
+    // check offset of the GEP: used to compute idx delta between store and load
     const llvm::Value* matchIVOffset(VRAFunctionInfo VFI, const llvm::Value *Idx, int64_t &Offset, llvm::Loop *L);
 
     // 4) TRIP COUNT METHODS
@@ -263,7 +270,7 @@ protected:
     void propagateFunction(llvm::Function* F, std::shared_ptr<AnalysisStore> FunctionStore = nullptr);
     void walk(llvm::Loop* L = nullptr);
 
-    // resolve all locked loops and RR after last iteration and iterate one again
+    // resolve all locked loops and RR after last iteration
     void fallback();
 
     // Statistic methods
@@ -283,6 +290,10 @@ protected:
         return num_rr;
     }
 
+    /// @brief Exploits instruction position got from dominance order found by preseed
+    /// @param V1 first value to compare
+    /// @param V2 second value to compare
+    /// @return true when the first value is before the second, false otherwise
     bool isBefore(const llvm::Value *V1, const llvm::Value *V2) const {
         auto I1 = InstrPos.find(V1);
         auto I2 = InstrPos.find(V2);
@@ -313,6 +324,7 @@ private:
     llvm::SmallVector<std::pair<const llvm::Function*, const llvm::Value*>> phiFalledBack;
     bool isFallback = false;
 
+    /// @brief statistic method
     void computeRecurrenceSummary();
 };
 
