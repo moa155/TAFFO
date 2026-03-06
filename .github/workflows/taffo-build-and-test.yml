@@ -18,7 +18,7 @@ jobs:
         llvm_version: [17, 18, 19, 20, 21]
 
     container:
-      image: docker.io/ledmington/taffo-deps:llvm${{ matrix.llvm_version }}
+      image: docker.io/niccolon/taffo-deps:llvm${{ matrix.llvm_version }}
 
     env:
       LLVM_INSTALL_DIR: /opt/llvm-${{ matrix.llvm_version }}
