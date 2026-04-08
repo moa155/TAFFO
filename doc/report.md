@@ -2,7 +2,7 @@
 
 ### A Combined Work Plan for Sub-Projects #1 and #3
 
-**Course**: Code Optimization and Transformation, A.Y. 2025/26
+**Course**: Code Transformation and Optimization, A.Y. 2025/26
 **Instructor**: Prof. Giovanni Agosta
 **TAFFO supervisors**: Niccolò Nicolosi, Gabriele Magnani
 **Student**: Mohamed *(individual project)*
@@ -151,7 +151,7 @@ This report describes the following contributions:
 
 ## 2. Background
 
-This section assembles the pieces of the COT course that the project
+This section assembles the pieces of the CTO course that the project
 stands on. The treatment deliberately follows the notation of
 Prof. Agosta's lecture slides so that the report reads as a direct
 continuation of the course material rather than a TAFFO-internal tech
@@ -487,7 +487,7 @@ Analysis of Programs by Construction or Approximation of Fixpoints*
 [History_of_Abstract_Interpretation.pdf, §3]. Disjunctive completion
 of an abstract domain appears explicitly in the subsequent POPL 1979
 follow-up, and is reviewed in Giacobazzi and Ranzato's *History of
-Abstract Interpretation* (2021, p. 38) which is part of the COT
+Abstract Interpretation* (2021, p. 38) which is part of the CTO
 course reading list. Our donut-range domain is an instance of this
 construction applied to the interval lattice, bounded to
 `kMaxComponents` components and equipped with the widening operator
@@ -800,7 +800,7 @@ after the self-square and donut-join fixes:
 
 ```
 ================================================================
- Donut Range Micro-Benchmark  (TAFFO COT project 2025/26)
+ Donut Range Micro-Benchmark  (TAFFO CTO project 2025/26)
  Compares classic interval VRA against donut-range VRA
 ================================================================
 
@@ -1036,7 +1036,7 @@ become "dense enough" to be better represented as a single hull.
 
 ### 8.7 Integration with the MLIR TAFFO pipeline
 
-Sub-projects #8, #9 and #10 in the COT 2025/26 project list address
+Sub-projects #8, #9 and #10 in the CTO 2025/26 project list address
 the TAFFO-MLIR pipeline. Donut ranges would translate directly into a
 matching MLIR type, but the MLIR DTA there is still limited; the
 TAFFO-MLIR work plan is an obvious long-term home for the follow-up
@@ -1065,16 +1065,16 @@ soundness proof for the non-monotonic activation constants.
 
 ## References
 
-**Course materials** (Code Optimization and Transformation, A.Y.
+**Course materials** (Code Transformation and Optimization, A.Y.
 2025/26, Prof. Giovanni Agosta, Politecnico di Milano):
 
-1. G. Agosta, **COT Slides 2 — Intermediate Representation**,
+1. G. Agosta, **CTO Slides 2 — Intermediate Representation**,
    `lectures/Slides/COT_slides_2_IR.pdf`.
-2. G. Agosta, **COT Slides 5 — Dataflow Analysis**,
+2. G. Agosta, **CTO Slides 5 — Dataflow Analysis**,
    `lectures/Slides/COT_slides_5_Dataflow.pdf`. *Slides 13–14 in
    particular provide the monotone-lattice + fixed-point iteration
    framework used throughout this report.*
-3. G. Agosta et al., **TAFFO project proposals, COT A.Y. 2025/26**,
+3. G. Agosta et al., **TAFFO project proposals, CTO A.Y. 2025/26**,
    Politecnico di Milano, March 27, 2026,
    `lectures/cto_projects_2025_26.pdf`. Sub-projects #1 (Donut
    Ranges in VRA) and #3 (Range Models for NN Activation Functions)

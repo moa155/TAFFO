@@ -1,13 +1,14 @@
-To:   giovanni.agosta@polimi.it          [VERIFY ADDRESS]
+From: Mohamed Z. M. Mandour <mohamedzeyad.mandour@mail.polimi.it>
+To:   giovanni.agosta@polimi.it          [VERIFY ADDRESS ON POLIMI RUBRICA]
 Cc:   niccolo.nicolosi@polimi.it
 Cc:   gabriele.magnani@polimi.it
-Subject: COT A.Y. 2025/26 - Project enrollment: TAFFO (Donut Ranges in VRA + Activation Function Range Models)
+Subject: CTO A.Y. 2025/26 - Project enrollment: TAFFO (Donut Ranges in VRA + Activation Function Range Models)
 
 Dear Prof. Agosta, dear Niccolo, dear Gabriele,
 
-I am writing to formally enroll in a project for the Code Optimization
-and Transformation course, A.Y. 2025/26, as a replacement for the oral
-exam and lab.
+I am writing to formally enroll in a project for the Code
+Transformation and Optimization course, A.Y. 2025/26, as a replacement
+for the oral exam and lab.
 
 After reviewing the project proposals presented on March 27th, I would
 like to work on the TAFFO framework. In particular, I am interested in
@@ -81,18 +82,17 @@ benchmarks) that would help me start on the right foot?
 Thank you very much in advance for your time.
 
 Best regards,
-Mohamed
-[full name, student ID, person code]
+
+Mohamed Z. M. Mandour
+Person code: 10736813
+mohamedzeyad.mandour@mail.polimi.it
 Politecnico di Milano
-[your.email@mail.polimi.it]
 
 --
-NOTES FOR MOHAMED (remove before sending):
-  * Verify Prof. Agosta's email address on the PoliMI website before
+NOTES (remove before sending):
+  * Verify Prof. Agosta's email address on the PoliMI rubrica before
     sending. The PoliMI convention is firstname.lastname@polimi.it,
-    but double-check his rubrica page.
-  * Fill in your full name, student ID (matricola) and person code.
-  * Replace [your.email@mail.polimi.it] with your actual PoliMI email.
+    but double-check his staff page.
   * The email is written in English. If you prefer Italian, I can
     translate it - just ask.
   * If you'd rather pick only ONE of the two sub-projects (simpler

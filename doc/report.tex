@@ -1,6 +1,6 @@
 % !TEX program = pdflatex
 %
-% COT A.Y. 2025/26 project report — Donut Ranges in TAFFO VRA
+% CTO A.Y. 2025/26 project report — Donut Ranges in TAFFO VRA
 % Compile with:   make -C doc/   or:  pdflatex report && pdflatex report
 %
 % Required LaTeX packages: amsmath amsthm amssymb booktabs listings xcolor
@@ -31,6 +31,7 @@
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 \usetikzlibrary{positioning,arrows.meta,calc,shapes.geometric,fit,backgrounds}
+\usepackage{adjustbox}
 \usepackage[hidelinks]{hyperref}
 
 % ===================== Theorem environments =====================
@@ -54,6 +55,11 @@
   rulecolor=\color{gray!30},
   showstringspaces=false,
   breaklines=true,
+  breakatwhitespace=false,
+  breakautoindent=true,
+  breakindent=1.5em,
+  columns=fullflexible,
+  keepspaces=true,
   numbers=none,
   captionpos=b,
   xleftmargin=0.5em,
@@ -63,34 +69,79 @@
   belowskip=0.4em
 }
 \lstdefinestyle{shell}{
-  basicstyle=\ttfamily\footnotesize,
+  basicstyle=\ttfamily\scriptsize,
   backgroundcolor=\color{codebg},
   frame=single,
   rulecolor=\color{gray!30},
   breaklines=true,
+  breakatwhitespace=true,
+  breakautoindent=true,
+  breakindent=1.5em,
   numbers=none,
   xleftmargin=0.5em,
   xrightmargin=0.5em,
-  framesep=4pt
+  framesep=4pt,
+  columns=fullflexible,
+  keepspaces=true
 }
 \lstset{style=cpp}
 
 % ===================== Metadata =====================
-\title{\Large \textbf{Donut Ranges and Activation-Function Range Models\\
-\large for TAFFO's Value Range Analysis}\\[0.4em]
-\large A combined implementation of COT sub-projects \#1 and \#3}
-
-\author{Mohamed\\[0.2em]
-\small Individual project\\[0.2em]
-\small Code Optimization and Transformation, A.Y.\ 2025/26\\[0.2em]
-\small Prof.\ Giovanni Agosta --- Politecnico di Milano}
-
+% The \title / \author / \date block below is kept for metadata only.
+% The actual front matter uses a custom titlepage further down.
+\title{Donut Ranges and Activation-Function Range Models for TAFFO}
+\author{Mohamed Z. M. Mandour (10736813)}
 \date{\today}
 
 % ===================== Document =====================
 \begin{document}
-\maketitle
 
+% ---------- Custom title page ----------
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+
+% PoliMI logo placeholder. Upload `polimi-logo.pdf` (or .png) to the
+% Overleaf project alongside report.tex. If the file is missing the
+% fallback box is drawn instead, so the document still compiles.
+\IfFileExists{polimi-logo.pdf}
+  {\includegraphics[width=0.35\linewidth]{polimi-logo}}
+  {\IfFileExists{polimi-logo.png}
+    {\includegraphics[width=0.35\linewidth]{polimi-logo}}
+    {\fbox{\parbox[c][3.5cm][c]{0.35\linewidth}{\centering\itshape\small
+       upload \texttt{polimi-logo.pdf}\\or \texttt{polimi-logo.png}\\to Overleaf}}}}
+
+\vspace{1.8cm}
+
+{\LARGE\bfseries Donut Ranges and\\[0.25em]
+Activation-Function Range Models\\[0.25em]
+for TAFFO's Value Range Analysis\par}
+\vspace{0.8em}
+{\large\itshape A combined implementation of CTO sub-projects \#1 and \#3\par}
+
+\vspace{2cm}
+
+{\large
+\begin{tabular}{@{}r@{\quad}l@{}}
+Author:      & Mohamed Z. M. Mandour \\
+Person code: & 10736813 \\
+Email:       & \texttt{mohamedzeyad.mandour@mail.polimi.it} \\
+\end{tabular}\par}
+
+\vspace{1.5cm}
+
+{\large
+Code Transformation and Optimization\\[0.2em]
+Academic Year 2025/26\\[0.2em]
+Prof.\ Giovanni Agosta\\[0.2em]
+Politecnico di Milano\par}
+
+\vfill
+{\large\today\par}
+\end{titlepage}
+
+% ---------- Abstract on its own page ----------
+\clearpage
 \begin{abstract}
 TAFFO is an LLVM-based tool-chain that rewrites floating-point programs
 into fixed-point for deployment on embedded and low-power targets. Its
@@ -125,8 +176,10 @@ quantisation step by a factor of approximately $1.6\times 10^7$,
 obtained as a pure analysis-side refinement with zero runtime cost.
 \end{abstract}
 
+% ---------- Table of contents on its own page ----------
+\clearpage
 \tableofcontents
-\vspace{1em}
+\clearpage
 
 % =====================================================================
 \section{Introduction and Motivation}
@@ -186,6 +239,7 @@ away.
 
 \begin{figure}[H]
 \centering
+\adjustbox{max width=\linewidth}{%
 \begin{tikzpicture}[scale=1]
 \draw[->,thick] (-5.5,0) -- (5.5,0) node[right] {$x$};
 \foreach \x in {-5,-4,-3,-2,-1,0,1,2,3,4,5}
@@ -217,7 +271,8 @@ away.
   (-4.0,1.0) -- (-1.0,1.0);
 \draw[thick, blue!60!black,decoration={brace,amplitude=5pt},decorate]
   (1.0,1.0) -- (4.0,1.0);
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{A bimodal value with strictly disjoint support, overlaid with
 both the classic convex-hull range (red, below the axis) and the
 two-component donut range (blue, above). The classic range includes
@@ -290,7 +345,7 @@ This report describes the following contributions:
 % =====================================================================
 \label{sec:background}
 
-This section assembles the pieces of the COT course that the project
+This section assembles the pieces of the CTO course that the project
 stands on. The treatment deliberately follows the notation of
 Prof.\ Agosta's lecture slides so that the report reads as a direct
 continuation of the course material rather than a TAFFO-internal
@@ -492,6 +547,7 @@ a valid element, and set containment on intervals is preserved.
 
 \begin{figure}[H]
 \centering
+\adjustbox{max width=\linewidth}{%
 \begin{tikzpicture}[
   node distance=1.4cm,
   box/.style={draw, rounded corners=2pt, minimum height=0.9cm, minimum width=3cm, font=\small},
@@ -507,7 +563,8 @@ a valid element, and set containment on intervals is preserved.
 
 \node[below=2pt of int,font=\scriptsize,gray] {classical TAFFO};
 \node[above=2pt of dn,font=\scriptsize,blue!60!black] {this project};
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{The donut-range lattice $\mathcal{D}_n$ sits strictly between
 the classic interval lattice $\mathsf{I}$ and the concrete value-set
 powerset. Proposition~\ref{prop:refines} gives the embedding;
@@ -671,6 +728,7 @@ pipeline and highlights where the donut extension lives.
 
 \begin{figure}[H]
 \centering
+\adjustbox{max width=\linewidth}{%
 \begin{tikzpicture}[
   node distance=0.9cm and 0.6cm,
   pass/.style={draw, rounded corners=3pt, minimum height=1cm, minimum width=2.2cm, align=center, font=\small\sffamily},
@@ -706,7 +764,8 @@ pipeline and highlights where the donut extension lives.
         fit=(vra), label={[font=\scriptsize, blue!60!black]below:{new: \texttt{-vra-donut-ranges} flag}}] {};
 \end{scope}
 
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{TAFFO's five-pass LLVM pipeline. The donut extension lives
 entirely inside VRA and publishes a backward-compatible
 \texttt{taffo\_info\_vra.json}: the new \texttt{components} field is
@@ -730,7 +789,7 @@ refinement of that representation.
 \paragraph{Abstract interpretation and disjunctive completion.}
 The theoretical foundation of the project is laid in Cousot and
 Cousot's original 1977 paper~\cite{cousot77}, cited through the
-history paper~\cite{history-ai} that is part of the COT reading list.
+history paper~\cite{history-ai} that is part of the CTO reading list.
 Disjunctive completion of an abstract domain appears explicitly in the
 1979 follow-up~\cite{cousot79} and is reviewed
 in~\cite[p.~38]{history-ai}. Our donut-range domain is an instance of
@@ -1080,6 +1139,7 @@ shrinkage of the reciprocal's magnitude visible.
 
 \begin{figure}[H]
 \centering
+\adjustbox{max width=\linewidth}{%
 \begin{tikzpicture}
 \begin{axis}[
   ybar,
@@ -1109,7 +1169,8 @@ shrinkage of the reciprocal's magnitude visible.
 };
 \legend{classic VRA, donut VRA}
 \end{axis}
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Signed integer bit-width a DTA pass would allocate for each
 kernel's output, classic (red) versus donut (blue). Kernels~1 and~4
 gain 24 bits of integer precision each; the others gain no integer
@@ -1120,6 +1181,7 @@ exploit (see \S\ref{sec:limit-dta}).}
 
 \begin{figure}[H]
 \centering
+\adjustbox{max width=\linewidth}{%
 \begin{tikzpicture}
 \begin{semilogyaxis}[
   width=\linewidth,
@@ -1140,10 +1202,11 @@ exploit (see \S\ref{sec:limit-dta}).}
   every node near coord/.append style={font=\tiny, color=black!80},
   axis line style={gray!60},
 ]
-\addplot+[fill=red!60, draw=red!70!black] coordinates {(classic, 1e8)};
-\addplot+[fill=blue!55, draw=blue!70!black] coordinates {(donut, 5)};
+\addplot+[fill=red!60, draw=red!70!black] coordinates {(classic,1e8)};
+\addplot+[fill=blue!55, draw=blue!70!black] coordinates {(donut,5)};
 \end{semilogyaxis}
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Maximum absolute value of the kernel-1 reciprocal, classic
 versus donut VRA. The $\texttt{DIV\_EPS}$ nudge in the classic path
 produces a magnitude of $10^8$; the zero-excluding donut division
@@ -1165,7 +1228,7 @@ post-Conversion LLVM IR.
 
 \paragraph{Benchmark (\texttt{test/donut\_ranges/donut\_array.c}).}
 
-\begin{lstlisting}[caption={End-to-end donut-range benchmark (excerpt).},label={lst:bench}]
+\begin{lstlisting}[caption={End-to-end donut-range benchmark (excerpt).},label={lst:bench},basicstyle=\ttfamily\scriptsize]
 static const double weights[14] = {
   -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2,
    0.2,  0.3,  0.4,  0.5,  0.6,  0.7,  0.8
@@ -1175,7 +1238,7 @@ double donut_array_kernel(int i) {
   const int ii = deconstify_int(i);
   double w = weights[ii];
   double __attribute__((annotate("scalar() target('reciprocal')")))
-    y = 1.0 / w;
+      y = 1.0 / w;
   return y;
 }
 \end{lstlisting}
@@ -1226,6 +1289,7 @@ scale to keep both visible).
 
 \begin{figure}[H]
 \centering
+\adjustbox{max width=\linewidth}{%
 \begin{tikzpicture}[scale=1.0]
 % Horizontal axis
 \draw[->, thick] (-7.5,0) -- (7.5,0) node[right,font=\scriptsize] {value (symmetric log scale)};
@@ -1249,7 +1313,8 @@ scale to keep both visible).
 \draw[thick,blue!70!black] (4.0,1.35) rectangle (5.8,1.85);
 \node[right=2pt,font=\scriptsize,blue!60!black] at (5.8,1.6) {donut: 4 components};
 \draw[dashed, gray] (-7.2,1.1) -- (7.2,1.1);
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{The image of $y = 1/w$ on the end-to-end benchmark, on a
 symmetric logarithmic value axis. The red band is the classic
 \texttt{DIV\_EPS}-nudged range $[-10^8, 10^8]$; the blue boxes are the
@@ -1290,6 +1355,7 @@ obtained from a pure analysis-side refinement with no runtime cost.
 
 \begin{figure}[H]
 \centering
+\adjustbox{max width=\linewidth}{%
 \begin{tikzpicture}
 \begin{axis}[
   xbar stacked,
@@ -1315,7 +1381,8 @@ obtained from a pure analysis-side refinement with no runtime cost.
 \addplot+[fill=blue!55, draw=blue!75!black] coordinates {(4,classic) (28,donut)};
 \legend{integer bits, fractional bits}
 \end{axis}
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{DTA bit-width allocation for the reciprocal $y=1/w$ on the
 end-to-end benchmark. Both builds use the same 32-bit total budget,
 but the donut build spends 24 of those bits on fractional precision
@@ -1417,7 +1484,7 @@ be better represented as a single hull.
 
 \subsection{Integration with the MLIR TAFFO pipeline}
 
-Sub-projects \#8--\#10 in the COT 2025/26 project list address the
+Sub-projects \#8--\#10 in the CTO 2025/26 project list address the
 TAFFO-MLIR pipeline. Donut ranges would translate directly into a
 matching MLIR type, but the MLIR DTA there is still limited; the
 TAFFO-MLIR work plan is an obvious long-term home for the follow-up
@@ -1449,23 +1516,24 @@ source-level annotation syntax for donut ranges, and a formal
 soundness proof for the non-monotonic activation constants.
 
 % =====================================================================
+\clearpage
 \begin{thebibliography}{99}
 % =====================================================================
 
 \bibitem{cot-ir}
-G.~Agosta. \emph{COT Slides 2 --- Intermediate Representation}. Code
-Optimization and Transformation, Politecnico di Milano, A.Y.\ 2025/26.
+G.~Agosta. \emph{CTO Slides 2 --- Intermediate Representation}. Code
+Transformation and Optimization, Politecnico di Milano, A.Y.\ 2025/26.
 \texttt{lectures/Slides/COT\_slides\_2\_IR.pdf}.
 
 \bibitem{cot-dataflow}
-G.~Agosta. \emph{COT Slides 5 --- Dataflow Analysis}. Code
-Optimization and Transformation, Politecnico di Milano, A.Y.\ 2025/26.
+G.~Agosta. \emph{CTO Slides 5 --- Dataflow Analysis}. Code
+Transformation and Optimization, Politecnico di Milano, A.Y.\ 2025/26.
 \texttt{lectures/Slides/COT\_slides\_5\_Dataflow.pdf}.
 Slides 13--14 provide the monotone-lattice and fixed-point iteration
 framework used throughout this report.
 
 \bibitem{cot-projects}
-G.~Agosta et al. \emph{TAFFO project proposals, COT A.Y.\ 2025/26}.
+G.~Agosta et al. \emph{TAFFO project proposals, CTO A.Y.\ 2025/26}.
 Politecnico di Milano, March 27, 2026.
 \texttt{lectures/cto\_projects\_2025\_26.pdf}. Sub-projects \#1
 (Donut Ranges in VRA) and \#3 (Range Models for NN Activation
@@ -1518,47 +1586,42 @@ Activation Functions (SiLU / Swish)}. arXiv:1710.05941, 2017.
 \label{app:reproduce}
 
 \begin{lstlisting}[style=shell,caption={Build and run the tests, micro-benchmark, and end-to-end benchmark.}]
-# 1. Configure and build the three test binaries.
-cd /Users/mohamed/CLionProjects/PoliMI/TAFFO
-cmake -B cmake-build-debug -S . \
-      -DLLVM_DIR=/opt/homebrew/opt/llvm@18/lib/cmake/llvm
-cmake --build cmake-build-debug \
-      --target donut_range_selftest donut_arith_test donut_microbench -j
+# Paths: set these once, everything below uses them.
+export TAFFO=/Users/mohamed/CLionProjects/PoliMI/TAFFO
+export LLVM=/opt/homebrew/opt/llvm@18/lib/cmake/llvm
+export BLD=$TAFFO/cmake-build-debug
+export T=$BLD/test/donut_ranges
 
-./cmake-build-debug/test/donut_ranges/donut_range_selftest
-./cmake-build-debug/test/donut_ranges/donut_arith_test
-./cmake-build-debug/test/donut_ranges/donut_microbench
+# 1. Configure and build the three test binaries.
+cd $TAFFO
+cmake -B $BLD -S . -DLLVM_DIR=$LLVM
+cmake --build $BLD -j \
+      --target donut_range_selftest donut_arith_test donut_microbench
+
+$T/donut_range_selftest
+$T/donut_arith_test
+$T/donut_microbench
 
 # 2. Build the full Taffo plugin and install it.
-cmake --build cmake-build-debug --target Taffo -j
-cp cmake-build-debug/lib/Taffo.dylib install/lib/Taffo.dylib
+cmake --build $BLD --target Taffo -j
+cp $BLD/lib/Taffo.dylib $TAFFO/install/lib/Taffo.dylib
 
 # 3. Run the end-to-end benchmark twice, keeping temp dirs.
-rm -rf /tmp/donut_arr_classic /tmp/donut_arr_donut
-mkdir -p /tmp/donut_arr_classic /tmp/donut_arr_donut
+rm -rf /tmp/classic /tmp/donut
+mkdir -p /tmp/classic /tmp/donut
 
-./install/bin/taffo -O2 -c -emit-llvm \
-  -temp-dir /tmp/donut_arr_classic \
-  -o /tmp/donut_e2e/donut_array_classic.ll \
-  test/donut_ranges/donut_array.c
+$TAFFO/install/bin/taffo -O2 -c -emit-llvm \
+    -temp-dir /tmp/classic -o /tmp/classic.ll \
+    $TAFFO/test/donut_ranges/donut_array.c
 
-./install/bin/taffo -O2 -c -emit-llvm \
-  -Xvra -vra-donut-ranges \
-  -temp-dir /tmp/donut_arr_donut \
-  -o /tmp/donut_e2e/donut_array_donut.ll \
-  test/donut_ranges/donut_array.c
+$TAFFO/install/bin/taffo -O2 -c -emit-llvm \
+    -Xvra -vra-donut-ranges \
+    -temp-dir /tmp/donut -o /tmp/donut.ll \
+    $TAFFO/test/donut_ranges/donut_array.c
 
-# 4. Inspect the VRA JSON and the final DTA bit-widths.
-grep -o 's[0-9]*_[0-9]*fixp' /tmp/donut_e2e/donut_array_classic.ll | sort -u
-grep -o 's[0-9]*_[0-9]*fixp' /tmp/donut_e2e/donut_array_donut.ll   | sort -u
+# 4. Inspect the final DTA bit-widths (look for sNN_MMfixp suffixes).
+grep -o 's[0-9]*_[0-9]*fixp' /tmp/classic.ll | sort -u
+grep -o 's[0-9]*_[0-9]*fixp' /tmp/donut.ll   | sort -u
 \end{lstlisting}
-
-\section{Enrollment email}
-\label{app:email}
-
-The enrollment email sent to Prof.\ Agosta and the TAFFO supervisors
-is reproduced in \texttt{enrollment\_email.txt} at the repository
-root; placeholders for personal information and Prof.\ Agosta's email
-address are explicitly marked.
 
 \end{document}

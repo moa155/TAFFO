@@ -1,6 +1,6 @@
 # Donut Ranges in VRA — Design Note
 
-*COT project A.Y. 2025/26, Mohamed (solo).*
+*CTO project A.Y. 2025/26, Mohamed (solo).*
 *Combined work plan: TAFFO sub-projects #1 "Donut Ranges in VRA" and*
 *#3 "Range Models for NN Activation Functions".*
 
