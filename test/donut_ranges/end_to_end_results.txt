@@ -1,0 +1,34 @@
+========================================================================
+ End-to-end TAFFO pipeline results for the donut-range extension
+ Benchmark: test/donut_ranges/donut_array.c
+ Host:     Apple Silicon MacBook Pro, Homebrew LLVM 18, release
+========================================================================
+
+--- CLASSIC VRA (./taffo -O2 ...)
+  %4 = getelementptr inbounds [14 x double], ptr @weights, i64 0, i64 %3, !db
+      {'min': -0.8, 'max': 0.8}
+  %6 = fdiv double 1.000000e+00, %5, !dbg !76, !taffo.id !77
+      {'min': -100000000.0, 'max': 100000000.0}
+  %5 = load double, ptr %4, align 8, !dbg !71, !taffo.id !74
+      {'min': -0.8, 'max': 0.8}
+  @weights = internal constant [14 x double] [double -8.000000e-01, double 0x
+      {'min': -0.8, 'max': 0.8}
+
+--- DONUT VRA   (./taffo -O2 -Xvra -vra-donut-ranges ...)
+  %4 = getelementptr inbounds [14 x double], ptr @weights, i64 0, i64 %3, !db
+      {'min': -0.8, 'max': 0.8, 'components': [[-0.8, -0.8], [-0.7, -0.2], [0.2, 0.7], [0.8, 0.8]]}
+  %5 = load double, ptr %4, align 8, !dbg !71, !taffo.id !74
+      {'min': -0.8, 'max': 0.8, 'components': [[-0.8, -0.8], [-0.7, -0.2], [0.2, 0.7], [0.8, 0.8]]}
+  %6 = fdiv double 1.000000e+00, %5, !dbg !76, !taffo.id !77
+      {'min': -5.0, 'max': 5.0, 'components': [[-5.0, -1.4285714285714286], [-1.25, -1.25], [1.25, 1.25], [1.4285714285714286, 5.0]]}
+  @weights = internal constant [14 x double] [double -8.000000e-01, double 0x
+      {'min': -0.8, 'max': 0.8, 'components': [[-0.8, -0.8], [-0.7, -0.2], [0.2, 0.7], [0.8, 0.8]]}
+
+========================================================================
+ Post-Conversion LLVM IR: SSA naming of y = 1/w
+========================================================================
+
+CLASSIC build:  %v6.s28_4fixp  (28 integer bits,  4 fractional bits)
+DONUT build:    %v6.s4_28fixp  ( 4 integer bits, 28 fractional bits)
+
+Difference: +24 fractional bits, ~1.6e7 tighter quantisation step.
