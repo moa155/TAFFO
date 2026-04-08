@@ -28,7 +28,9 @@ std::string ValueConvInfo::toString() const {
     for (Value* root : roots) {
       if (!first)
         ss << ", ";
-      ss << root->getNameOrAsOperand();
+      // NOTE: parentheses are required because operator<< binds tighter than
+      // the ternary ?:. Without them the name would never actually reach `ss`.
+      ss << (root->getName().empty() ? std::string("<unnamed>") : root->getName().str());
       first = false;
     }
     ss << " }";
