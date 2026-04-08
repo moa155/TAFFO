@@ -6,13 +6,75 @@
 #include <llvm/ADT/APSInt.h>
 #include <llvm/Support/Casting.h>
 
+#include <algorithm>
 #include <assert.h>
+#include <functional>
 #include <map>
+#include <utility>
+#include <vector>
 
 #define DEBUG_TYPE "taffo-vra"
 
 using namespace llvm;
 using namespace taffo;
+
+//=============================================================================
+// Donut-range helpers
+//
+// A donut range is a Range whose `components` vector is non-empty, meaning
+// the value is constrained to a finite union of disjoint closed intervals
+// rather than a single convex hull [min, max].
+//
+// These helpers implement "piecewise" binary arithmetic: given two operands,
+// walk the Cartesian product of their components (or their single-interval
+// hull when they are classic ranges), apply a user-supplied per-interval
+// operator, and collect every resulting sub-interval into a canonical
+// donut. When the feature flag `Range::enableDonut` is OFF, the helpers
+// fall back to the classic convex-hull arithmetic so there is zero
+// behavioural change for existing TAFFO users.
+//=============================================================================
+
+using IntervalOp =
+    std::function<std::pair<double, double>(double, double, double, double)>;
+
+/// Runs `op` on each pair of components drawn from lhs x rhs and collects
+/// the resulting intervals into a new donut-aware Range. Guaranteed to
+/// short-circuit to a classic single-interval result when neither operand
+/// is a donut (or when the donut flag is off).
+static std::shared_ptr<Range>
+applyPiecewise(const std::shared_ptr<Range>& lhs,
+               const std::shared_ptr<Range>& rhs,
+               IntervalOp op) {
+  if (!lhs || !rhs) return nullptr;
+
+  // Fast path: both operands are classic intervals or the flag is off.
+  // In either case we only need to apply `op` once to the hulls, which
+  // exactly reproduces the pre-donut behaviour.
+  const bool useDonut = Range::enableDonut && (!lhs->components.empty() ||
+                                                !rhs->components.empty());
+  if (!useDonut) {
+    const auto [lo, hi] = op(lhs->min, lhs->max, rhs->min, rhs->max);
+    return std::make_shared<Range>(lo, hi);
+  }
+
+  const auto lComps = lhs->getComponentsOrHull();
+  const auto rComps = rhs->getComponentsOrHull();
+
+  auto result = std::make_shared<Range>(
+      +std::numeric_limits<double>::infinity(),
+      -std::numeric_limits<double>::infinity());
+  // We deliberately bypass addComponent's "flag off => no-op" branch by
+  // assembling `components` directly here: the flag IS on in this branch.
+  result->components.reserve(lComps.size() * rComps.size());
+  for (const auto& l : lComps) {
+    for (const auto& r : rComps) {
+      const auto [lo, hi] = op(l.first, l.second, r.first, r.second);
+      result->components.emplace_back(lo, hi);
+    }
+  }
+  result->canonicalize();
+  return result;
+}
 
 //-----------------------------------------------------------------------------
 // Wrappers
@@ -201,69 +263,160 @@ std::shared_ptr<Range> taffo::handleCompare(const std::list<std::shared_ptr<Rang
 
 /** operator+ */
 std::shared_ptr<Range> taffo::handleAdd(const std::shared_ptr<Range> op1, const std::shared_ptr<Range> op2) {
-  if (!op1 || !op2)
-    return nullptr;
-  double a = op1->min + op2->min;
-  double b = op1->max + op2->max;
-  return std::make_shared<Range>(a, b);
+  return applyPiecewise(op1, op2,
+                         [](double a_lo, double a_hi, double b_lo, double b_hi) {
+                           return std::make_pair(a_lo + b_lo, a_hi + b_hi);
+                         });
 }
 
 /** operator- */
 std::shared_ptr<Range> taffo::handleSub(const std::shared_ptr<Range> op1, const std::shared_ptr<Range> op2) {
-  if (!op1 || !op2)
-    return nullptr;
-  double a = op1->min - op2->max;
-  double b = op1->max - op2->min;
-  return std::make_shared<Range>(a, b);
+  return applyPiecewise(op1, op2,
+                         [](double a_lo, double a_hi, double b_lo, double b_hi) {
+                           return std::make_pair(a_lo - b_hi, a_hi - b_lo);
+                         });
 }
 
-/** operator* */
+// Per-interval square: image of [lo, hi] under x -> x*x. The lower bound is
+// 0 iff the interval straddles zero, and the upper bound is max(lo^2, hi^2).
+// This is strictly tighter than the Cartesian product formula for generic
+// multiplication, which would produce spurious negative components because
+// it naively multiplies [-a,-b]*[b,a] without noticing the operands are
+// the same SSA value.
+static std::pair<double, double> squareInterval(double lo, double hi) {
+  const double a = lo * lo;
+  const double b = hi * hi;
+  const double rMax = std::max(a, b);
+  const double rMin = (lo <= 0.0 && hi >= 0.0) ? 0.0 : std::min(a, b);
+  return {rMin, rMax};
+}
+
+/** operator*
+ *
+ * Two fast paths:
+ *   1. Self-square (op1 == op2): use the closed-form `squareInterval`
+ *      helper per component, then canonicalise. This preserves the
+ *      "x*x >= 0" invariant that the generic Cartesian product would
+ *      otherwise destroy — see report §7.5 for the original imprecision
+ *      that motivated this branch.
+ *   2. Generic multiplication: route through `applyPiecewise` with the
+ *      textbook (min, max) of the four corners.
+ */
 std::shared_ptr<Range> taffo::handleMul(const std::shared_ptr<Range> op1, const std::shared_ptr<Range> op2) {
   if (!op1 || !op2)
     return nullptr;
+
+  // Self-square fast path. Applies to both classic and donut operands: in
+  // the classic case it reproduces the pre-project behaviour exactly; in
+  // the donut case it walks the component list and squares each one
+  // independently, avoiding the spurious negative sub-intervals that a
+  // generic Cartesian product would generate for mirror-symmetric
+  // donuts such as `[-2,-0.5] ∪ [0.5,2]`.
   if (op1 == op2) {
-    // This is a square.
-    double a = op1->min * op1->min;
-    double b = op1->max * op1->max;
-    double r1 = (op1->min <= 0.0 && op1->max >= 0) ? 0.0 : std::min(a, b);
-    double r2 = std::max(a, b);
-    return std::make_shared<Range>(r1, r2);
+    const bool donut = Range::enableDonut && !op1->components.empty();
+    if (!donut) {
+      const auto [lo, hi] = squareInterval(op1->min, op1->max);
+      return std::make_shared<Range>(lo, hi);
+    }
+    auto result = std::make_shared<Range>(
+        +std::numeric_limits<double>::infinity(),
+        -std::numeric_limits<double>::infinity());
+    result->components.reserve(op1->components.size());
+    for (const auto& c : op1->components) {
+      const auto [lo, hi] = squareInterval(c.first, c.second);
+      result->components.emplace_back(lo, hi);
+    }
+    result->canonicalize();
+    return result;
   }
-  double a = op1->min * op2->min;
-  double b = op1->max * op2->max;
-  double c = op1->min * op2->max;
-  double d = op1->max * op2->min;
-  const double r1 = std::min({a, b, c, d});
-  const double r2 = std::max({a, b, c, d});
-  return std::make_shared<Range>(r1, r2);
+
+  return applyPiecewise(op1, op2,
+                         [](double a_lo, double a_hi, double b_lo, double b_hi) {
+                           const double a = a_lo * b_lo;
+                           const double b = a_hi * b_hi;
+                           const double c = a_lo * b_hi;
+                           const double d = a_hi * b_lo;
+                           return std::make_pair(std::min({a, b, c, d}),
+                                                 std::max({a, b, c, d}));
+                         });
 }
 
-/** operator/ */
+/** operator/
+ *
+ * When donut ranges are off, or when the divisor is a classic interval that
+ * crosses zero, we keep the legacy DIV_EPS dance that nudges the divisor
+ * off zero and accepts a wide output range.
+ *
+ * When donut ranges are on AND the divisor's components each avoid zero,
+ * we get the big win: each sub-interval is strictly positive or strictly
+ * negative, so we divide by it with the textbook interval formula and
+ * union the results — no DIV_EPS fudge required.
+ */
 std::shared_ptr<Range> taffo::handleDiv(const std::shared_ptr<Range> op1, const std::shared_ptr<Range> op2) {
   if (!op1 || !op2)
     return nullptr;
-  double op2_min, op2_max;
-  // Avoid division by 0
+
+  auto safeIntervalDiv = [](double a_lo, double a_hi,
+                            double b_lo, double b_hi) {
 #define DIV_EPS (static_cast<double>(1e-8))
-  if (op2->max <= 0) {
-    op2_min = std::min(op2->min, -DIV_EPS);
-    op2_max = std::min(op2->max, -DIV_EPS);
+    double bl = b_lo;
+    double bh = b_hi;
+    if (bh <= 0.0) {
+      bl = std::min(bl, -DIV_EPS);
+      bh = std::min(bh, -DIV_EPS);
+    } else if (bl < 0.0) {
+      bl = -DIV_EPS;
+      bh = +DIV_EPS;
+    } else {
+      bl = std::max(bl, +DIV_EPS);
+      bh = std::max(bh, +DIV_EPS);
+    }
+    const double a = a_lo / bl;
+    const double b = a_hi / bh;
+    const double c = a_lo / bh;
+    const double d = a_hi / bl;
+    return std::make_pair(std::min({a, b, c, d}), std::max({a, b, c, d}));
+#undef DIV_EPS
+  };
+
+  // Donut-aware fast path: iterate over every pair of sub-intervals.
+  // Each divisor component that excludes zero benefits from exact
+  // interval division (no DIV_EPS nudge), while any component that still
+  // crosses zero falls back to safeIntervalDiv.
+  const bool useDonut =
+      Range::enableDonut && (!op1->components.empty() || !op2->components.empty());
+  if (!useDonut) {
+    const auto [lo, hi] =
+        safeIntervalDiv(op1->min, op1->max, op2->min, op2->max);
+    return std::make_shared<Range>(lo, hi);
   }
-  else if (op2->min < 0) {
-    op2_min = -DIV_EPS;
-    op2_max = +DIV_EPS;
+
+  const auto lComps = op1->getComponentsOrHull();
+  const auto rComps = op2->getComponentsOrHull();
+  auto result = std::make_shared<Range>(
+      +std::numeric_limits<double>::infinity(),
+      -std::numeric_limits<double>::infinity());
+  result->components.reserve(lComps.size() * rComps.size());
+  for (const auto& l : lComps) {
+    for (const auto& r : rComps) {
+      const bool crossesZero = r.first <= 0.0 && r.second >= 0.0;
+      std::pair<double, double> sub;
+      if (crossesZero) {
+        sub = safeIntervalDiv(l.first, l.second, r.first, r.second);
+      } else {
+        // Textbook interval division: no DIV_EPS because r is known
+        // strictly positive or strictly negative.
+        const double a = l.first / r.first;
+        const double b = l.second / r.second;
+        const double c = l.first / r.second;
+        const double d = l.second / r.first;
+        sub = {std::min({a, b, c, d}), std::max({a, b, c, d})};
+      }
+      result->components.emplace_back(sub);
+    }
   }
-  else {
-    op2_min = std::max(op2->min, +DIV_EPS);
-    op2_max = std::max(op2->max, +DIV_EPS);
-  }
-  double a = op1->min / op2_min;
-  double b = op1->max / op2_max;
-  double c = op1->min / op2_max;
-  double d = op1->max / op2_min;
-  const double r1 = std::min({a, b, c, d});
-  const double r2 = std::max({a, b, c, d});
-  return std::make_shared<Range>(r1, r2);
+  result->canonicalize();
+  return result;
 }
 
 double getRemMin(double op1_min, double op1_max, double op2_min, double op2_max);
@@ -506,9 +659,27 @@ std::shared_ptr<Range> taffo::getUnionRange(const std::shared_ptr<Range> op1, co
     return copyRange(op2);
   if (!op2)
     return copyRange(op1);
+  // Classic (and always-correct) convex-hull union: downstream callers
+  // that do not know about donut ranges see this hull no matter what.
   const double min = std::min({op1->min, op2->min});
   const double max = std::max({op1->max, op2->max});
-  return std::make_shared<Range>(min, max);
+  auto result = std::make_shared<Range>(min, max);
+
+  // Donut-aware refinement: when the flag is on, ALWAYS run the
+  // component-level union (not just when the operands already carry
+  // components). This is what lets two *classic* disjoint intervals
+  // join into a proper two-component donut — which is the whole point
+  // of sub-project #1. canonicalize() will automatically collapse back
+  // to a classic interval when the two operands happen to overlap.
+  if (Range::enableDonut) {
+    const auto lhs = op1->getComponentsOrHull();
+    const auto rhs = op2->getComponentsOrHull();
+    result->components.reserve(lhs.size() + rhs.size());
+    for (const auto& c : lhs) result->components.push_back(c);
+    for (const auto& c : rhs) result->components.push_back(c);
+    result->canonicalize();
+  }
+  return result;
 }
 
 std::shared_ptr<ValueInfoWithRange> taffo::getUnionRange(const std::shared_ptr<ValueInfoWithRange> op1,
