@@ -4,6 +4,8 @@
 
 #include <limits>
 #include <cmath>
+#include <utility>
+#include <vector>
 
 #include <llvm/ADT/APFloat.h>
 
@@ -24,6 +26,57 @@ struct Range : public Serializable, public tda::Printable {
   bool isLowerNegInf = true;
   bool isUpperPosInf = true;
 
+  // ===== DONUT RANGES (sub-project #1) =====
+  //
+  // Optional list of disjoint closed intervals whose convex hull is exactly
+  // [min, max]. When empty, this Range is a classic single interval and
+  // behaves identically to pre-donut TAFFO. See doc/donut_ranges_design.md.
+  //
+  // INVARIANTS (after canonicalize()):
+  //   1. components is sorted by .first
+  //   2. no two consecutive components touch or overlap
+  //   3. components.size() <= kMaxComponents
+  //   4. if components.size() == 1 the vector is cleared (a 1-component
+  //      donut is just a classic interval, so we skip the indirection)
+  //   5. when !components.empty(), min == components.front().first and
+  //      max == components.back().second
+  std::vector<std::pair<double, double>> components;
+
+  // Maximum number of disjoint components kept after canonicalisation.
+  // Beyond this we widen by merging the two closest-adjacent components
+  // until the size is back under the cap. Chosen small so the abstract
+  // domain stays cheap and the analysis stays decidable.
+  static constexpr unsigned kMaxComponents = 4;
+
+  // Global opt-in flag. When false (the default), every donut-aware code
+  // path short-circuits to the classic single-interval behaviour, so
+  // existing TAFFO users see zero regression. Set to true by the
+  // -vra-donut-ranges command-line option; see ValueRangeAnalysisPass.
+  static bool enableDonut;
+
+  /// Returns true iff this range has at least 2 disjoint components, i.e.
+  /// it is strictly finer than a classic interval.
+  bool isDonut() const { return components.size() >= 2; }
+
+  /// Append a component. If the enableDonut flag is off, this is a no-op
+  /// and the caller should fall back to setting min/max directly.
+  void addComponent(double lo, double hi);
+
+  /// Bring `components` to canonical form (sort, merge overlaps, merge
+  /// adjacent duplicates, widen to at most kMaxComponents, drop to classic
+  /// if only 1 survives) and sync min/max to the convex hull.
+  void canonicalize();
+
+  /// Rebuild the convex-hull min/max and APFloat shadow from the current
+  /// `components` vector. Assumes components is already canonical.
+  void rebuildHullFromComponents();
+
+  /// Returns a read-only "list" of component intervals to iterate over.
+  /// When `components` is empty, this returns a 1-element vector
+  /// containing (min, max) so callers can write piecewise arithmetic in
+  /// a uniform way regardless of whether the range is a donut.
+  std::vector<std::pair<double, double>> getComponentsOrHull() const;
+
   // ===== CONSTRUCTORS =====
 
   Range(const llvm::fltSemantics& S = llvm::APFloat::IEEEdouble()) 
@@ -31,12 +84,13 @@ struct Range : public Serializable, public tda::Printable {
       lower(llvm::APFloat::getZero(S)), upper(llvm::APFloat::getZero(S)) {}
 
   /// @brief Constructor by copy
-  /// @param other 
-  Range(const Range& other) 
-    : min(other.min), max(other.max), 
+  /// @param other
+  Range(const Range& other)
+    : min(other.min), max(other.max),
       sem(other.sem),
       lower(other.lower), upper(other.upper),
-      isLowerNegInf(other.isLowerNegInf), isUpperPosInf(other.isUpperPosInf) {}
+      isLowerNegInf(other.isLowerNegInf), isUpperPosInf(other.isUpperPosInf),
+      components(other.components) {}
 
   /// @brief create range by doubles
   /// @param min 
@@ -59,6 +113,7 @@ struct Range : public Serializable, public tda::Printable {
     r->sem = this->sem;
     r->isLowerNegInf = this->isLowerNegInf;
     r->isUpperPosInf = this->isUpperPosInf;
+    r->components = this->components;
     return r;
   }
 
