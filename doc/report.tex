@@ -1203,11 +1203,11 @@ components of its own.
 \toprule
 Value & Classic VRA & Donut VRA \\
 \midrule
-\verb|@weights| (array) & $[-0.8,0.8]$ &
+\texttt{@weights} (array) & $[-0.8,0.8]$ &
   $[-0.8,0.8]$ + \texttt{components} $=$
   $\{[-0.8,-0.8],[-0.7,-0.2],[0.2,0.7],[0.8,0.8]\}$ \\[0.3em]
-\verb|%5 = load weights[ii]| & $[-0.8,0.8]$ & same 4 components \\[0.3em]
-\textbf{\verb|%6 = fdiv 1.0, %5|} & \textbf{$[-10^8,10^8]$} &
+\texttt{\%5 = load weights[ii]} & $[-0.8,0.8]$ & same 4 components \\[0.3em]
+\textbf{\texttt{\%6 = fdiv 1.0, \%5}} & \textbf{$[-10^8,10^8]$} &
   \textbf{$[-5,5]$} + \texttt{components} $=$
   $\{[-5,-1.43],[-1.25,-1.25],[1.25,1.25],[1.43,5]\}$ \\
 \bottomrule
