@@ -1,4 +1,5 @@
 #include "Debug/Logger.hpp"
+#include "TaffoInfo/RangeInfo.hpp"
 #include "TaffoInfo/TaffoInfo.hpp"
 #include "VRAGlobalStore.hpp"
 #include "ValueRangeAnalysisPass.hpp"
@@ -38,6 +39,16 @@ cl::opt<bool> UseOldVRA("use-old-vra",
 cl::opt<unsigned> MaxPropagation("max-propagation",
                           cl::desc("Max propagation iterations before stopping (10 is the default, 0 disables the limit)."),
                           cl::init(10U));
+
+// Enable donut ranges: VRA tracks unions of disjoint intervals instead of
+// a single convex hull. See doc/donut_ranges_design.md for the full
+// rationale. Default OFF for backwards compatibility; flip via
+// `-vra-donut-ranges` at opt time.
+static cl::opt<bool, /*ExternalStorage=*/true> EnableDonutRangesOpt(
+    "vra-donut-ranges",
+    cl::desc("Track unions of disjoint intervals in VRA (donut ranges)."),
+    cl::location(taffo::Range::enableDonut),
+    cl::init(false));
 
 } // namespace taffo
 
