@@ -1294,13 +1294,14 @@ obtained from a pure analysis-side refinement with no runtime cost.
 \begin{axis}[
   xbar stacked,
   width=\linewidth,
-  height=3.5cm,
-  bar width=20pt,
+  height=3.8cm,
+  bar width=22pt,
   xmin=0, xmax=36,
   xlabel={bits (total 32)},
   ylabel=\,,
-  symbolic y coords={classic s28\_4fixp, donut s4\_28fixp},
+  symbolic y coords={classic,donut},
   ytick=data,
+  yticklabels={\texttt{classic\ s28\_4fixp},\texttt{donut\ s4\_28fixp}},
   tick label style={font=\footnotesize},
   legend style={at={(0.5,1.35)}, anchor=south, legend columns=-1, font=\small, draw=none},
   xmajorgrids=true,
@@ -1310,12 +1311,8 @@ obtained from a pure analysis-side refinement with no runtime cost.
   nodes near coords align={horizontal},
   every node near coord/.append style={font=\scriptsize, color=white, inner sep=2pt},
 ]
-\addplot+[fill=red!65, draw=red!80!black] coordinates {
-  (28, classic s28\_4fixp) (4, donut s4\_28fixp)
-};
-\addplot+[fill=blue!55, draw=blue!75!black] coordinates {
-  (4, classic s28\_4fixp) (28, donut s4\_28fixp)
-};
+\addplot+[fill=red!65, draw=red!80!black] coordinates {(28,classic) (4,donut)};
+\addplot+[fill=blue!55, draw=blue!75!black] coordinates {(4,classic) (28,donut)};
 \legend{integer bits, fractional bits}
 \end{axis}
 \end{tikzpicture}
