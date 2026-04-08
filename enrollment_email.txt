@@ -1,0 +1,100 @@
+To:   giovanni.agosta@polimi.it          [VERIFY ADDRESS]
+Cc:   niccolo.nicolosi@polimi.it
+Cc:   gabriele.magnani@polimi.it
+Subject: COT A.Y. 2025/26 - Project enrollment: TAFFO (Donut Ranges in VRA + Activation Function Range Models)
+
+Dear Prof. Agosta, dear Niccolo, dear Gabriele,
+
+I am writing to formally enroll in a project for the Code Optimization
+and Transformation course, A.Y. 2025/26, as a replacement for the oral
+exam and lab.
+
+After reviewing the project proposals presented on March 27th, I would
+like to work on the TAFFO framework. In particular, I am interested in
+combining two of the advertised sub-projects into a single coherent
+work plan:
+
+  1. "Donut Ranges in VRA" - extending the Value Range Analysis pass
+     to represent unions of intervals, so that value distributions
+     clustered around a non-zero mean (e.g. neural-network weights)
+     are not forced to include the near-zero region that causes range
+     explosion in division and reciprocal operations.
+
+  2. "Range Models for NN Activation Functions" - teaching VRA the
+     input/output behaviour of the standard activation functions
+     (sigmoid, tanh, ReLU and its variants, ELU, softplus, GELU, SiLU)
+     and, where appropriate, providing fixed-point implementations
+     based on lookup tables or polynomial approximations.
+
+My motivation for combining the two sub-projects is that they are
+mathematically complementary: a sigmoid applied to a donut-shaped
+input such as [-10, -5] U [5, 10] produces a donut-shaped output
+(approximately [0, 0.007] U [0.993, 1.0]) that cannot be captured by
+a single interval without collapsing to the trivial [0, 1]. Donut
+ranges are therefore the natural representation that lets activation
+function modelling deliver its full benefit, and together they form
+a single coherent contribution to TAFFO's handling of neural networks.
+
+### Proposed work plan
+
+  * Phase 1 - Finish and harden the activation function range handlers
+    in TaffoVRA/RangeOperationsCallWhitelist.cpp, including closed-form
+    treatment of non-monotonic functions (GELU, SiLU) and LLVM intrinsic
+    entries where applicable.
+
+  * Phase 2 - Design and implement a DonutRange type in TaffoVRA: a
+    canonicalised union of disjoint closed intervals, with union /
+    intersection / widening and the four arithmetic operations. The
+    new type is introduced in a way that keeps the existing Range
+    API working (convex-hull fallback for downstream passes), and is
+    enabled via an opt-in command-line flag so existing TAFFO users
+    are not affected.
+
+  * Phase 3 - Plumb DonutRange through VRAnalyzer, VRAGlobalStore and
+    VRAFunctionStore, and extend the activation function handlers to
+    propagate donut ranges piecewise.
+
+  * Phase 4 - Unit tests covering canonicalisation, arithmetic,
+    serialisation and activation-function interaction.
+
+  * Phase 5 - Benchmarking on at least one small neural network
+    (for example a quantised MLP on MNIST) comparing baseline TAFFO,
+    TAFFO with activation models only, and TAFFO with donut ranges +
+    activation models. I will report per-variable bit-widths assigned
+    by DTA, end-to-end accuracy, and binary size.
+
+  * Phase 6 - A written report covering motivation, formalism,
+    implementation, evaluation and directions for a possible thesis
+    extension.
+
+### Logistics
+
+I will be working on this project individually. I have already cloned
+the TAFFO repository, set up a local build environment, and started
+reading the VRA pass to orient myself.
+
+Could we schedule a short briefing at your convenience, so that you
+can confirm whether this combined scope is acceptable and give me any
+pointers (priorities, pitfalls, existing WIP branches, reference
+benchmarks) that would help me start on the right foot?
+
+Thank you very much in advance for your time.
+
+Best regards,
+Mohamed
+[full name, student ID, person code]
+Politecnico di Milano
+[your.email@mail.polimi.it]
+
+--
+NOTES FOR MOHAMED (remove before sending):
+  * Verify Prof. Agosta's email address on the PoliMI website before
+    sending. The PoliMI convention is firstname.lastname@polimi.it,
+    but double-check his rubrica page.
+  * Fill in your full name, student ID (matricola) and person code.
+  * Replace [your.email@mail.polimi.it] with your actual PoliMI email.
+  * The email is written in English. If you prefer Italian, I can
+    translate it - just ask.
+  * If you'd rather pick only ONE of the two sub-projects (simpler
+    scope, lower 30L odds), let me know and I'll rewrite the email
+    for a single sub-project.
