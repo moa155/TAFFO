@@ -229,6 +229,78 @@ void testDonutDivSubjectCrossesZero() {
 
 // ===== getUnionRange =====
 
+// ===== Non-monotonic activations: certified GELU / SiLU minima =====
+
+void testGELUCertifiedMinimumStraddling() {
+  // Straddling case: the input interval contains x_min ≈ -0.7524614.
+  // The certified Y_MIN is -0.1702 (see
+  // test/donut_ranges/verify_activation_bounds.py). We require the
+  // returned lower bound to be exactly that sound constant, and the
+  // upper bound to be the larger of gelu(lo) and gelu(hi).
+  section("GELU: straddling interval returns the certified Y_MIN");
+  Range::enableDonut = false;
+  auto x = classic(-1.0, 0.0);
+  std::list<std::shared_ptr<Range>> ops{x};
+  auto r = taffo::handleMathCallInstruction(ops, "gelu");
+  EXPECT_TRUE(r != nullptr);
+  EXPECT_NEAR(r->min, -0.1702, 1e-12);
+  EXPECT_NEAR(r->max, 0.0, 1e-3);  // gelu(0) == 0, gelu(-1) ≈ -0.159
+}
+
+void testGELUMonotoneDecreasingBranch() {
+  // lo = -3, hi = -2. hi < X_MIN_HI = -0.76: entire decreasing branch.
+  // Returned range is [gelu(hi), gelu(lo)] ≈ [-0.0454, -0.00404].
+  section("GELU: fully-decreasing branch uses monotone case A");
+  Range::enableDonut = false;
+  auto x = classic(-3.0, -2.0);
+  std::list<std::shared_ptr<Range>> ops{x};
+  auto r = taffo::handleMathCallInstruction(ops, "gelu");
+  EXPECT_TRUE(r != nullptr);
+  // No Y_MIN involvement — the reported min should be gelu(-2) ≈ -0.0454.
+  EXPECT_NEAR(r->min, -0.04540,  1e-3);
+  EXPECT_NEAR(r->max, -0.00405, 1e-3);
+}
+
+void testSiLUCertifiedMinimumStraddling() {
+  // Input contains x_min ≈ -1.278464. Certified Y_MIN is -0.2786.
+  section("SiLU: straddling interval returns the certified Y_MIN");
+  Range::enableDonut = false;
+  auto x = classic(-2.0, 0.0);
+  std::list<std::shared_ptr<Range>> ops{x};
+  auto r = taffo::handleMathCallInstruction(ops, "silu");
+  EXPECT_TRUE(r != nullptr);
+  EXPECT_NEAR(r->min, -0.2786, 1e-12);
+  EXPECT_NEAR(r->max, 0.0, 1e-3);  // silu(0) = 0, silu(-2) ≈ -0.238
+}
+
+void testSiLUMonotoneIncreasingBranch() {
+  // lo = -1, hi = 2. lo > X_MIN = -1.27: fully on the increasing branch.
+  section("SiLU: fully-increasing branch uses monotone case B");
+  Range::enableDonut = false;
+  auto x = classic(-1.0, 2.0);
+  std::list<std::shared_ptr<Range>> ops{x};
+  auto r = taffo::handleMathCallInstruction(ops, "silu");
+  EXPECT_TRUE(r != nullptr);
+  // silu(-1) ≈ -0.2689, silu(2) ≈ 1.7616.
+  EXPECT_NEAR(r->min, -0.26894, 1e-3);
+  EXPECT_NEAR(r->max,  1.76159, 1e-3);
+}
+
+void testGELUDonutPreservesHole() {
+  // Donut input whose left and right components each hit different
+  // monotone branches: [-3, -2] on decreasing, [0.5, 1.5] on increasing.
+  // Per-component handler should produce a 2-component donut.
+  section("GELU: donut input preserves hole across branches");
+  Range::enableDonut = true;
+  auto x = donut2(-3.0, -2.0, 0.5, 1.5);
+  std::list<std::shared_ptr<Range>> ops{x};
+  auto r = taffo::handleMathCallInstruction(ops, "gelu");
+  EXPECT_TRUE(r != nullptr);
+  // Two components expected (neither straddles x_min).
+  EXPECT_TRUE(r->components.size() == 2);
+  Range::enableDonut = false;
+}
+
 void testUnionPreservesDonut() {
   section("getUnionRange: concatenation respects canonicalisation");
   Range::enableDonut = true;
@@ -257,6 +329,12 @@ int runAll() {
   testDonutDivByZeroExcludingComponents();
   testClassicDivStillBlows();
   testDonutDivSubjectCrossesZero();
+
+  testGELUCertifiedMinimumStraddling();
+  testGELUMonotoneDecreasingBranch();
+  testSiLUCertifiedMinimumStraddling();
+  testSiLUMonotoneIncreasingBranch();
+  testGELUDonutPreservesHole();
 
   testUnionPreservesDonut();
 

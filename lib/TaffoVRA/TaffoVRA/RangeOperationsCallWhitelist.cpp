@@ -324,13 +324,18 @@ static std::shared_ptr<Range> handleCallToGELU(const std::list<std::shared_ptr<R
   // GELU (tanh approximation):
   //   gelu(x) ≈ 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
   //
-  // True minimum for this approximation is at x ≈ -0.7517916 with value
-  // ≈ -0.1700432. The constants below sandwich that location and use a
-  // slightly-more-negative Y_MIN so the reported range is a sound
-  // over-approximation of the true image.
+  // Certificate (test/donut_ranges/verify_activation_bounds.py, mpmath
+  // at 60-digit precision):
+  //   x_min   ≈ -0.752461422071016258
+  //   f(x_min) ≈ -0.170040750571254051
+  //   X_MIN_HI = -0.76 < x_min < X_MIN = -0.75   (2-decimal sandwich)
+  //   Y_MIN   = -0.1702 ≤ f(x_min)               (1.59e-4 safety slack)
+  // Soundness was then double-checked by evaluating gelu on a dense
+  // 1000-point grid covering [X_MIN_HI, X_MIN] and asserting every
+  // sample value is ≥ Y_MIN.
   constexpr double X_MIN = -0.75;
   constexpr double X_MIN_HI = -0.76;
-  constexpr double Y_MIN = -0.1701;
+  constexpr double Y_MIN = -0.1702;
   auto gelu = [](double x) {
     return 0.5 * x * (1.0 + std::tanh(0.7978845608 * (x + 0.044715 * x * x * x)));
   };
@@ -346,10 +351,16 @@ static std::shared_ptr<Range> handleCallToSiLU(const std::list<std::shared_ptr<R
     return nullptr;
 
   // SiLU (Swish): silu(x) = x * sigmoid(x).
-  // True minimum is at x ≈ -1.2784645 with value ≈ -0.2784645.
+  // Certificate (test/donut_ranges/verify_activation_bounds.py, mpmath
+  // at 60-digit precision):
+  //   x_min   ≈ -1.278464542761073795
+  //   f(x_min) ≈ -0.278464542761073795
+  //   X_MIN_HI = -1.28 < x_min < X_MIN = -1.27   (tightest 2-decimal sandwich)
+  //   Y_MIN   = -0.2786 ≤ f(x_min)               (1.35e-4 safety slack)
+  // Soundness was then double-checked on a dense 1000-point grid.
   constexpr double X_MIN = -1.27;
-  constexpr double X_MIN_HI = -1.29;
-  constexpr double Y_MIN = -0.2785;
+  constexpr double X_MIN_HI = -1.28;
+  constexpr double Y_MIN = -0.2786;
   auto silu = [](double x) {
     if (x < -30.0) return 0.0;
     return x / (1.0 + std::exp(-x));
