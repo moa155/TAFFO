@@ -1,12 +1,21 @@
-# Find clang-format in the system's PATH
-find_program(CLANG_FORMAT_EXECUTABLE NAMES clang-format-19 clang-format)
+# Locate clang-format >= 19 for the formatting checks.
+#
+# A missing or too-old clang-format is a developer-experience issue, not a
+# build blocker: on Homebrew the default `clang-format` on PATH is 18 while a
+# newer one lives under `/opt/homebrew/opt/llvm/bin`. We widen the search and
+# downgrade the "not found" / "too old" cases from FATAL_ERROR to STATUS so
+# that configuration succeeds on developer machines without a bleeding-edge
+# clang-format. The formatting job in CI still enforces the real check.
+find_program(CLANG_FORMAT_EXECUTABLE
+  NAMES clang-format-19 clang-format-20 clang-format-21 clang-format-22 clang-format
+  HINTS /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin
+)
 
-# Check if clang-format was found
 if(NOT CLANG_FORMAT_EXECUTABLE)
-  message(FATAL_ERROR "clang-format not found. Please install clang-format version 19 or higher.")
+  message(STATUS "clang-format not found; formatting checks will be skipped.")
+  return()
 endif()
 
-# Check the version of clang-format
 execute_process(
   COMMAND ${CLANG_FORMAT_EXECUTABLE} --version
   OUTPUT_VARIABLE CLANG_FORMAT_VERSION_OUTPUT
@@ -14,18 +23,18 @@ execute_process(
   RESULT_VARIABLE CLANG_FORMAT_VERSION_RESULT
 )
 
-# Extract the version number from the output
 if(NOT CLANG_FORMAT_VERSION_RESULT EQUAL 0)
-  message(FATAL_ERROR "Failed to get clang-format version.")
+  message(STATUS "Failed to get clang-format version; formatting checks will be skipped.")
+  return()
 endif()
 
-# Extract the version number from the output (e.g., "clang-format version 19")
 string(REGEX MATCH "[0-9]+" CLANG_FORMAT_VERSION ${CLANG_FORMAT_VERSION_OUTPUT})
 
-# Compare the version number
 if(CLANG_FORMAT_VERSION VERSION_LESS "19")
-  message(FATAL_ERROR " clang-format version 19 or higher is required.\n"
-                      " Installed version: ${CLANG_FORMAT_VERSION}")
+  message(STATUS
+    "clang-format ${CLANG_FORMAT_VERSION} found at ${CLANG_FORMAT_EXECUTABLE}; "
+    "version 19+ is recommended. Formatting checks will be skipped.")
+  set(CLANG_FORMAT_EXECUTABLE "" CACHE FILEPATH "" FORCE)
 else()
-  message(STATUS "clang-format version ${CLANG_FORMAT_VERSION} found.")
+  message(STATUS "clang-format version ${CLANG_FORMAT_VERSION} found at ${CLANG_FORMAT_EXECUTABLE}.")
 endif()

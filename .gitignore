@@ -15,3 +15,17 @@ test/**/*.csv
 test/**/*.json
 test/**/taffo_temp
 test/**/*.taffotmp.ll
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store
+# local cmake/install/log artefacts
+install/
+cmake_configure.log
+# latex aux files (commit the PDF so supervisors can read it directly)
+doc/*.aux
+doc/*.log
+doc/*.out
+doc/*.toc
+doc/*.fls
+doc/*.fdb_latexmk
+doc/*.synctex.gz
