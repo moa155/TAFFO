@@ -1,0 +1,20 @@
+---- MLP classic build (no flag) ----
+---- MLP donut build ( -Xvra -vra-donut-ranges ) ----
+
+target    classic VRA                                         donut VRA                                                     cDTA          dDTA        
+------------------------------------------------------------------------------------------------------------------------------------------------------
+W1        [-0.8, 0.8]                                         [-0.8, 0.8] donut=[-0.8,-0.2]U[0.2,0.8]                       s2_30fixp     s2_30fixp     <-- seed
+W2        [-0.6, 0.6]                                         [-0.6, 0.6] donut=[-0.6,-0.15]U[0.15,0.6]                     s4_28fixp     s4_28fixp     <-- seed
+b1        [-0.5, 0.5]                                         [-0.5, 0.5]                                                   s2_30fixp     s2_30fixp     
+b2        [-0.3, 0.3]                                         [-0.3, 0.3]                                                   s3_29fixp     s3_29fixp     
+x         [-1, 1]                                             [-1, 1]                                                       s2_30fixp     s2_30fixp     
+h_pre     [-3.7, 3.7]                                         [-3.7, 3.7]                                                   s4_28fixp     s4_28fixp     
+h_post    [-3.7, 3.7]                                         [-3.7, 3.7]                                                   s4_28fixp     s4_28fixp     
+y_pre     [-4.92, 4.92]                                       [-4.92, 4.92]                                                 s4_28fixp     s4_28fixp     
+y_post    [-2.7, 2.7]                                         [-2.7, 2.7]                                                   s3_29fixp     s3_29fixp     
+
+Summary: the seeded W1 / W2 carry their donut components through
+VRA; derived quantities do not inherit the hole because the kernel
+pattern (bimodal * zero-crossing input, then sum over fan-in)
+closes the hole by construction. This is the HONEST end-to-end
+finding for a ReLU-style MLP, documented in report §7.4.
