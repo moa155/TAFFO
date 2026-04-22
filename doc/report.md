@@ -1230,6 +1230,41 @@ mirror-symmetric donut collapses to a single classic interval. The
 micro-benchmark was rerun after the fix; kernel 4 now reports the
 tight result and the 24-bit integer saving is preserved.
 
+### 8.5.1 Conversion-pass fixes uncovered by the MLP benchmark (fixed)
+
+Putting the toy MLP of §7.5 through the full TAFFO driver revealed
+two pre-existing defects in the Conversion pass, both of which are
+unrelated to donut ranges but both of which blocked any user whose
+code looks like a standard neural network. Both are fixed in this
+submission and covered by the smoke tests that now complete
+end-to-end.
+
+1. **`convertStore` missing insertion point.** The store-conversion
+   handler passed `nullptr` as the insertion-point argument when
+   asking `getConvertedOperand` to bring the store's value into the
+   target fixed-point format. When the value being stored is a
+   function argument or constant (not an `Instruction`),
+   `genConvertConvToConv` cannot derive an insertion point from the
+   source and asserted `insertionPoint required`. Passing the
+   `store` instruction itself as insertion point — which is also
+   where the store's `IRBuilder` is anchored a few lines below —
+   fixes the crash and is the natural semantic choice: the
+   conversion is materialised immediately before the store.
+
+2. **Float-typed source with fixed-point metadata in
+   `genConvertConvToConv`.** Cloned functions (e.g. a per-format
+   clone of `taffo_relu`) briefly carry a function argument whose
+   LLVM type is still `double` but whose TAFFO `ConversionType`
+   metadata has already been updated to fixed-point in
+   preparation for the body walk. In that state
+   `srcConvType.isFloatingPoint()` is false even though
+   `src->getType()->isFloatingPointTy()` is true, so the existing
+   branch that routes float → fixed-point through
+   `genConvertFloatToConv` did not trigger and the integer
+   `CreateSExtOrTrunc` path below crashed on a `double` operand.
+   The fix is to widen that guard to trust the actual LLVM type as
+   well as the metadata.
+
 ### 8.6 Larger `kMaxComponents`
 
 Raising `kMaxComponents` past 4 would allow the analysis to track

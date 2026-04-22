@@ -1712,6 +1712,47 @@ two operand pointers are identical, then canonicalises. The
 regression is pinned by
 \texttt{testDonutSelfSquareTight} in \texttt{donut\_arith\_test.cpp}.
 
+\subsection{Conversion-pass fixes uncovered by the MLP benchmark (fixed)}
+\label{sec:limit-convfix}
+
+Putting the toy MLP of \S\ref{sec:mlp-benchmark} through the full
+TAFFO driver revealed two pre-existing defects in the Conversion
+pass, both unrelated to donut ranges but both blocking any user
+whose source looks like a standard neural network. Both are fixed
+in this submission.
+
+\begin{enumerate}
+\item \textbf{\texttt{convertStore} missing insertion point.} The
+  store-conversion handler passed \texttt{nullptr} as the
+  insertion-point argument when asking \texttt{getConvertedOperand}
+  to coerce the store's value into the target fixed-point format.
+  When the value operand is a function argument or a constant (not
+  an \texttt{Instruction}), \texttt{genConvertConvToConv} cannot
+  derive an insertion point and asserted
+  \texttt{insertionPoint required}. Passing the \texttt{store}
+  instruction as insertion point --- the same anchor the store's
+  own \texttt{IRBuilder} uses a few lines below --- fixes the crash
+  and is the natural semantic choice.
+\item \textbf{Float-typed source with fixed-point metadata in
+  \texttt{genConvertConvToConv}.} Cloned functions briefly carry a
+  function argument whose LLVM type is still \texttt{double} but
+  whose TAFFO \texttt{ConversionType} metadata has already been
+  updated to fixed-point in preparation for the body walk. In that
+  state \texttt{srcConvType.isFloatingPoint()} is false even though
+  \texttt{src->getType()->isFloatingPointTy()} is true, so the
+  existing branch that routes float~$\to$~fixed-point through
+  \texttt{genConvertFloatToConv} did not trigger and the integer
+  \texttt{CreateSExtOrTrunc} path crashed on a \texttt{double}
+  operand. The fix widens that guard to trust the actual LLVM type
+  as well as the metadata.
+\end{enumerate}
+
+With both fixes in place the toy MLP of \S\ref{sec:mlp-benchmark}
+runs through all five TAFFO pass stages (TypeDeducer, Initializer,
+VRA, DTA, Conversion) and the final \texttt{.taffotmp.s} assembly
+artefact is produced, confirming that the full pipeline is
+operational on NN-shaped annotated code.
+
 \subsection{Larger \texttt{kMaxComponents}}
 
 Raising \texttt{kMaxComponents} past 4 would allow the analysis to
