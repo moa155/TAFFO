@@ -1,8 +1,102 @@
 <img src="doc/logo/TAFFO-logo-black.png" alt="TAFFO" width=30%>
 
+> **CTO 2025/26 project fork — TAFFO with Donut Ranges + NN Activation Range Models**
+>
+> This fork extends upstream TAFFO with two new analyses, delivered as a
+> single combined contribution for the *Code Transformation and
+> Optimization* course at Politecnico di Milano (A.Y. 2025/26, Prof. G.
+> Agosta). Author: Mohamed Z. M. Mandour (person code 10736813).
+>
+> Full written report: **[`doc/report.pdf`](doc/report.pdf)** (≈ 237 KiB,
+> 9 sections + 2 appendices, 85 passing test assertions, 5-kernel
+> precision micro-benchmark, two end-to-end benchmarks driven through
+> the TAFFO driver).
+>
+> Design note with the lattice / arithmetic / widening definitions:
+> **[`doc/donut_ranges_design.md`](doc/donut_ranges_design.md)**.
+>
+> All project code lives under [`test/donut_ranges/`](test/donut_ranges/)
+> (tests, scripts, benchmarks) and is touched in focused commits in
+> [`lib/TaffoCommon/`](lib/TaffoCommon/),
+> [`lib/TaffoInitializer/`](lib/TaffoInitializer/),
+> [`lib/TaffoVRA/`](lib/TaffoVRA/), and
+> [`lib/TaffoConversion/`](lib/TaffoConversion/). Run
+> `git log upstream/master..master` to see the 20 project-specific
+> commits in dependency order.
+
+### New contributions in this fork
+
+1. **Donut ranges in VRA** — `taffo::Range` now represents each SSA
+   value as a sorted canonicalised union of up to `kMaxComponents`
+   disjoint closed intervals. All binary arithmetic operators, the
+   self-square fast path, and `getUnionRange` propagate the
+   component list; division gains a zero-exclusion fast path that
+   skips the `DIV_EPS` nudge when every divisor component strictly
+   avoids zero. Details in `lib/TaffoCommon/TaffoInfo/RangeInfo.{hpp,cpp}`
+   and `lib/TaffoVRA/TaffoVRA/RangeOperations.cpp`.
+2. **Range models for 8 NN activation functions** — sigmoid, ReLU,
+   leaky ReLU, ELU, softplus, GELU, SiLU/Swish, plus a cleaned-up
+   tanh handler. Non-monotonic kernels (GELU, SiLU) use a closed-form
+   case-split around mpmath-certified minimum constants (60-digit
+   precision, 1000-point grid soundness check). See
+   `lib/TaffoVRA/TaffoVRA/RangeOperationsCallWhitelist.cpp` and
+   `test/donut_ranges/verify_activation_bounds.py`.
+3. **Source-level donut annotation syntax** — the new
+   `scalar(range_union((a1,b1),(a2,b2),...))` lets users declare
+   donut ranges directly at source level, parsed by
+   `lib/TaffoInitializer/AnnotationParser.cpp`. The annotation is
+   backward-compatible: with the flag off, VRA uses the convex hull
+   and ignores the components, but the metadata round-trips.
+4. **Opt-in flag** — `-Xvra -vra-donut-ranges` turns the feature on;
+   the default is off, so existing TAFFO users see zero behavioural
+   change.
+5. **Pre-existing TAFFO Conversion-pass fixes** uncovered while
+   running the project benchmarks through the full driver:
+   a missing insertion point in `convertStore` and a
+   float-metadata / LLVM-type mismatch in `genConvertConvToConv`.
+   Both are unrelated to donut ranges but block any NN-shaped user
+   code; fixed in `lib/TaffoConversion/Conversion/`.
+
+### Quick start (macOS, Apple Silicon)
+
+```shell
+cd "$HOME/TAFFO"
+cmake -B cmake-build-debug -S . \
+      -DLLVM_DIR=/opt/homebrew/opt/llvm@18/lib/cmake/llvm
+cmake --build cmake-build-debug --target donut_range_selftest \
+      donut_arith_test donut_microbench Taffo -j
+cmake --install cmake-build-debug --prefix "$PWD/install"
+
+# 85-assertion unit-test suite
+./cmake-build-debug/test/donut_ranges/donut_range_selftest
+./cmake-build-debug/test/donut_ranges/donut_arith_test
+
+# 5-kernel precision micro-benchmark
+./cmake-build-debug/test/donut_ranges/donut_microbench
+
+# End-to-end range_union annotation smoke test (8 assertions)
+test/donut_ranges/run_donut_annotated.sh
+
+# Toy MLP through the full pipeline (classic vs donut)
+test/donut_ranges/run_donut_mlp.sh
+
+# mpmath certificate for GELU / SiLU minima
+python3 test/donut_ranges/verify_activation_bounds.py
+```
+
+The reference machine for the numbers in the report is an
+Apple Silicon MacBook Pro running Homebrew LLVM 18.1.8, macOS 26.4.
+Linux with LLVM 18 also works (use the upstream instructions below
+and replace `LLVM_DIR` accordingly).
+
+---
+
+## Upstream TAFFO documentation
+
 TAFFO *(Tuning Assistant for Floating Point to Fixed Point Optimization)* is a precision-tuning framework to replace floating point operations with fixed point operations.
 
-It is based on LLVM and has been tested on Linux (any attempt to compile on Windows, WSL or macOS is at your own risk and peril).
+It is based on LLVM and has been tested on Linux and, as part of the
+CTO 2025/26 project, on macOS with Homebrew LLVM 18 (Apple Silicon).
 
 ## How to use TAFFO
 

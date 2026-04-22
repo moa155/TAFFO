@@ -157,7 +157,7 @@ framework of abstract interpretation~--- donut ranges are the
 disjunctive completion of the interval lattice, equipped with a
 widening operator that guarantees termination.
 
-The contributions are evaluated on 71 unit-test assertions, a five-kernel
+The contributions are evaluated on 85 unit-test assertions, a five-kernel
 precision micro-benchmark, and an \emph{end-to-end} measurement through
 the full TAFFO driver on a bimodal weight-array benchmark. The headline
 result is that on the end-to-end benchmark, the reciprocal of a bimodal
@@ -171,6 +171,10 @@ obtained as a pure analysis-side refinement with zero runtime cost.
 % ---------- Table of contents on its own page ----------
 \clearpage
 \tableofcontents
+\vspace{1.5em}
+\listoffigures
+\vspace{1em}
+\listoftables
 \clearpage
 
 % =====================================================================
@@ -442,7 +446,7 @@ semantics''} (p.~37) and identifies four ingredients:
 \item \textbf{Fixed-point approximation}: the abstract semantics of a
   program is the least fixed point of the abstract transfer function
   lifted through the Galois connection.
-\item \textbf{Widening operators} (R\'ezig 1974, p.~36): a binary
+\item \textbf{Widening operators} (Cousot \& Cousot 1977; cf.\ History of AI p.~36): a binary
   operator $\nabla\colon A\times A\to A$ such that
   $a_1\sqsubseteq a_1\nabla a_2$ and $a_2\sqsubseteq a_1\nabla a_2$
   (sound over-approximation) and such that every ascending chain
@@ -806,7 +810,7 @@ operator of~\S\ref{sec:widening}.
 
 \paragraph{Widening on infinite domains.}
 The classical interval-domain widening operator is due to
-R\'ezig~(1974) and is reviewed in~\cite[p.~36]{history-ai}. We reuse
+Cousot \& Cousot~(1977) and is reviewed in~\cite[p.~36]{history-ai}. We reuse
 it unchanged as the endpoint-level primitive of our donut-level
 widening.
 
@@ -980,7 +984,7 @@ File & Change \\
 \texttt{test/donut\_ranges/donut\_range\_selftest.cpp} &
   new standalone correctness test (28 assertions) \\
 \texttt{test/donut\_ranges/donut\_arith\_test.cpp} &
-  new arithmetic test (43 assertions) \\
+  new arithmetic test (57 assertions) \\
 \texttt{test/donut\_ranges/donut\_microbench.cpp} &
   new precision micro-benchmark \\
 \texttt{test/donut\_ranges/donut\_array.c} &
@@ -1531,6 +1535,7 @@ generated \texttt{taffo\_info\_vra.json}.
 \caption{Assertions checked by
 \texttt{test/donut\_ranges/run\_donut\_annotated.sh}. All eight pass
 on the reference machine.}
+\label{tab:range-union-assertions}
 \end{table}
 
 This harness confirms that (i) the parser populates
@@ -1790,10 +1795,12 @@ in every kernel where it is meaningful to do so. On the
 DTA's bit-width decision on the reciprocal of a bimodal weight moves
 from \texttt{s28\_4fixp} to \texttt{s4\_28fixp}, a factor of
 $\approx 1.6 \times 10^{7}$ shrinkage of the quantisation step with
-zero runtime cost. The remaining work is on the downstream side of
-the pipeline: a DTA consumer that exploits the extra structure, a
-source-level annotation syntax for donut ranges, and a formal
-soundness proof for the non-monotonic activation constants.
+zero runtime cost. The principal remaining work is on the
+downstream side of the pipeline: a DTA consumer that exploits the
+per-component structure, allocating narrower fixed-point formats
+where the hole is wide enough to justify it. Full end-to-end
+coverage of NN workloads beyond the toy MLP of~\S\ref{sec:mlp-benchmark}
+is a natural thesis-scope extension.
 
 % =====================================================================
 \clearpage
@@ -1867,7 +1874,7 @@ Activation Functions (SiLU / Swish)}. arXiv:1710.05941, 2017.
 
 \begin{lstlisting}[style=shell,caption={Build and run the tests, micro-benchmark, and end-to-end benchmark.}]
 # Paths: set these once, everything below uses them.
-export TAFFO=/Users/mohamed/CLionProjects/PoliMI/TAFFO
+export TAFFO=$HOME/TAFFO         # adjust to your checkout
 export LLVM=/opt/homebrew/opt/llvm@18/lib/cmake/llvm
 export BLD=$TAFFO/cmake-build-debug
 export T=$BLD/test/donut_ranges

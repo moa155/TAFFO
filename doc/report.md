@@ -251,7 +251,7 @@ semantics"** (p. 37) and identifies four ingredients:
 3. **Fixed-point approximation**: the abstract semantics of a program
    is the least fixed point of the abstract transfer function lifted
    through the Galois connection.
-4. **Widening operators** (Rézig 1974, p. 36): a binary operator
+4. **Widening operators** (Cousot & Cousot 1977; cf. *History of AI* p. 36): a binary operator
    `∇ : A × A → A` such that `a₁ ⊑ a₁ ∇ a₂` and `a₂ ⊑ a₁ ∇ a₂` (sound
    over-approximation) and such that every ascending chain
    `x₀ ⊑ x₀ ∇ x₁ ⊑ (x₀ ∇ x₁) ∇ x₂ ⊑ …` stabilises in finitely many
@@ -513,8 +513,8 @@ construction applied to the interval lattice, bounded to
 of §3.4.
 
 **Widening on infinite domains.** The classical interval-domain
-widening operator is due to Rézig (1974) and is reviewed in
-[History, p. 36]. We reuse it unchanged as the endpoint-level
+widening operator is due to Cousot & Cousot (1977) and is reviewed
+in [History, p. 36]. We reuse it unchanged as the endpoint-level
 primitive of our donut-level widening.
 
 **LLVM as an analysis host.** Lattner and Adve's *LLVM: A
@@ -1296,11 +1296,13 @@ behaviour, serialisation format and downstream passes are unchanged.
 
 On the designed micro-benchmark the new analysis saves up to 25
 signed-integer bits on reciprocal kernels that hit TAFFO's `DIV_EPS`
-nudge today, and preserves the donut hole in every kernel where it is
-meaningful to do so. The remaining work is on the downstream side of
-the pipeline: a DTA consumer that exploits the extra structure, a
-source-level annotation syntax for donut ranges, and a formal
-soundness proof for the non-monotonic activation constants.
+nudge today, and preserves the donut hole in every kernel where it
+is meaningful to do so. The principal remaining work is on the
+downstream side of the pipeline: a DTA consumer that exploits the
+per-component structure, allocating narrower fixed-point formats
+where the hole is wide enough to justify it. Full end-to-end
+coverage of NN workloads beyond the toy MLP of §7.5 is a natural
+thesis-scope extension.
 
 ---
 
@@ -1359,7 +1361,7 @@ soundness proof for the non-monotonic activation constants.
 ## Appendix A — Reproducing the results
 
 ```bash
-cd /Users/mohamed/CLionProjects/PoliMI/TAFFO
+cd $HOME/TAFFO   # adjust to your checkout
 
 # Build
 cmake -B cmake-build-debug -S . \
