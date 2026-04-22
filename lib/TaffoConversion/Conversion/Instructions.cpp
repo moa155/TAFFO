@@ -209,7 +209,13 @@ Value* ConversionPass::convertStore(StoreInst* store) {
 
   TransparentType* valueOperandType = taffoInfo.getTransparentType(*valueOperand);
   auto valueOperandConvType = taffoConvInfo.getNewOrOldType(newPointerOperand)->clone(*valueOperandType);
-  newValueOperand = getConvertedOperand(newValueOperand, *valueOperandConvType, nullptr, ConvTypePolicy::ForceHint);
+  // Pass `store` as the insertion point so that non-Instruction value
+  // operands (Arguments, Constants) have a place to materialise their
+  // fixed-point conversion. Without this, genConvertConvToConv trips
+  // its `insertionPoint required` assertion whenever a store consumes
+  // a function argument whose fixed-point format differs from the
+  // pointer's target format.
+  newValueOperand = getConvertedOperand(newValueOperand, *valueOperandConvType, store, ConvTypePolicy::ForceHint);
 
   /*if (store->getFunction()->getCallingConv() == CallingConv::SPIR_KERNEL || mdutils::MetadataManager::isCudaKernel(m,
   store->getFunction())) { align = Align(fullyUnwrapPointerOrArrayType(peltype)->getScalarSizeInBits() / 8); } else */

@@ -269,7 +269,15 @@ Value* ConversionPass::genConvertConvToConv(Value* src,
             resConvType = ConversionScalarType(*dstConvType.toTransparentType(), &fixedPointInfo);
         }
 
-  if (srcConvType.isFloatingPoint() && resConvType.isFixedPoint())
+  // Route floating-point sources through genConvertFloatToConv. We check
+  // *both* the ConvType metadata AND the LLVM IR type, because cloned
+  // functions can end up with a double-typed argument whose ConvType
+  // metadata has already been updated to fixed-point in preparation for
+  // the body walk — in that state the source is still a `double` Value
+  // but srcConvType.isFloatingPoint() is false, so the integer-arithmetic
+  // paths below would run CreateSExtOrTrunc on a float operand and crash.
+  if ((srcConvType.isFloatingPoint() || src->getType()->isFloatingPointTy())
+      && resConvType.isFixedPoint())
     return genConvertFloatToConv(src, resConvType, insertionPoint);
 
   unsigned srcBits = srcConvType.getBits();
