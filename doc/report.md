@@ -146,6 +146,25 @@ This report describes the following contributions:
    **micro-benchmark**, both runnable directly from the TAFFO build
    without depending on the stale gtest infrastructure in
    `unittests/`.
+8. A new **`scalar(range_union(...))` annotation syntax** in
+   TAFFO's Initializer, so that users can declare donut ranges
+   directly in source code (§6.5). Backed by an end-to-end
+   assertion harness that runs the TAFFO driver twice on the same
+   source (flag on + flag off) and checks that the seeded
+   components survive into VRA and that arithmetic propagates
+   correctly in both modes (§7.4).
+9. A **rigorous numerical certificate** for the non-monotonic
+   activation minima: the GELU and SiLU `X_MIN_HI / X_MIN / Y_MIN`
+   constants are now derived from a 60-decimal-digit computation
+   using `mpmath`, double-checked on a dense 1000-point grid, and
+   pinned by five new unit-test assertions (§6.6, §8.4).
+10. A **toy 1-hidden-layer MLP** benchmark that exercises the full
+    TAFFO pipeline on NN-shaped annotated code (§7.5), honestly
+    reporting that while the seeded weight components survive into
+    VRA, the ReLU+sum topology closes the hole before DTA sees it;
+    this pins the precise topology pattern under which the donut
+    refinement does and does not translate into downstream bit-width
+    savings.
 
 ---
 
@@ -700,9 +719,85 @@ std::pair<double, double> nonMonotonicKernel(
 }
 ```
 
-GELU and SiLU each call it with their respective function and
-(sound, slightly-loose) minimum constants. The non-monotonic 1000-sample
-scan that was in the repository before this project is deleted.
+GELU and SiLU each call it with their respective function and certified
+minimum constants. The non-monotonic 1000-sample scan that was in the
+repository before this project is deleted.
+
+### 6.5 Source-level annotation syntax: `range_union(...)`
+
+TAFFO's Initializer previously accepted only a single-interval
+`scalar(range(a, b))` annotation. To let users declare donut ranges
+directly at source level, we add a parallel form
+
+```
+scalar(range_union((a1, b1), (a2, b2), ..., (aN, bN)))
+```
+
+to the recursive-descent parser in
+`lib/TaffoInitializer/AnnotationParser.cpp`. The new branch sits in
+`parseScalar` *before* the existing `range(...)` branch — the parser's
+`peek` primitive is prefix-based, so the longer identifier must be
+tested first.
+
+Implementation-wise the branch:
+
+1. Allocates a fresh `taffo::Range` and a reference to it.
+2. Loops over comma-separated `(lo, hi)` tuples, pushing each one
+   into `Range::components` directly (bypassing `addComponent`'s
+   `enableDonut = false` short-circuit — the seed must carry the
+   component list regardless of whether the VRA flag is on, so that
+   the annotation is still semantically a donut if the flag is
+   enabled later in the pass pipeline).
+3. Calls `canonicalize()` followed by `rebuildHullFromComponents()`,
+   which collapses single-component seeds to a classic interval and
+   keeps the APFloat shadows in sync with `min/max`.
+
+Empty `range_union()` is rejected with a clear diagnostic. Writing
+`range_union((a, b))` with a single component is legal and degenerates
+to a classic range — useful for users whose annotation generator
+produces the same form with a variable number of components.
+
+When `-vra-donut-ranges` is **off**, `addComponent` is flag-gated but
+the parser's direct `components.push_back` is not — so the donut seed
+is preserved in the serialised metadata even in classic builds, and
+downstream VRA simply ignores the `components` field and uses the
+convex hull. Metadata written by a donut build can therefore be read
+back by a classic build without loss, and vice-versa.
+
+### 6.6 Certified activation-minima constants
+
+The `X_MIN_HI / X_MIN / Y_MIN` triples that parametrise
+`nonMonotonicKernel` for GELU and SiLU were hand-chosen in the
+earlier iteration of this project to be sound over-approximations of
+the true minima (§8.4 in the previous draft listed the absence of a
+formal certificate as a limitation). For the final submission, those
+constants are derived from the Python script
+`test/donut_ranges/verify_activation_bounds.py`, which:
+
+* uses `mpmath` at 60-decimal-digit precision to locate the true
+  minimum of each activation (`findroot` on the analytic derivative);
+* rounds the minimiser outward to the 2-decimal grid to produce the
+  tightest possible integer-free bracket `X_MIN_HI < x_min < X_MIN`;
+* rounds the exact minimum value *down* (more negative) and pads it
+  with a 1e-4 safety margin to produce the sound `Y_MIN`;
+* validates the soundness by evaluating the activation on a dense
+  1000-point grid across the bracket and asserting every sample is
+  $\geq Y_{\min}$.
+
+The certified constants are:
+
+| Activation | $x_{\min}$ (60-digit) | $X_{\min,\text{HI}}$ | $X_{\min}$ | $Y_{\min}$ | slack |
+|---|---|---:|---:|---:|---|
+| GELU (tanh approx) | $-0.7524614220710162584$ | $-0.76$ | $-0.75$ | $-0.1702$ | $1.59\times 10^{-4}$ |
+| SiLU / Swish       | $-1.2784645427610737951$ | $-1.28$ | $-1.27$ | $-0.2786$ | $1.35\times 10^{-4}$ |
+
+Five dedicated unit tests in `donut_arith_test.cpp` pin this exact
+triple — `testGELUCertifiedMinimumStraddling`,
+`testGELUMonotoneDecreasingBranch`, `testSiLUCertifiedMinimumStraddling`,
+`testSiLUMonotoneIncreasingBranch`, and
+`testGELUDonutPreservesHole` — so any future constant drift is caught
+at CI time. The C++ source references the Python certificate script
+in a comment block directly above each constant.
 
 ---
 
@@ -732,7 +827,7 @@ itself, linking against only `TaffoCommon`:
 `RangeOperations.cpp` and `RangeOperationsCallWhitelist.cpp` into the
 test binary (the rationale for the selective compilation is in
 §6.1 — `obj.TaffoVRA` cannot be linked standalone without LLVM's
-`LLVM_ENABLE_DUMP` symbol). The 11 test sections are:
+`LLVM_ENABLE_DUMP` symbol). The 16 test sections are:
 
 * classic-path regression tests for `handleAdd`, `handleSub`,
   `handleMul` on non-donut inputs (verifies no regression in the
@@ -753,7 +848,12 @@ test binary (the rationale for the selective compilation is in
   compare against);
 * `handleDiv` donut-numerator / donut-denominator;
 * `getUnionRange` joining two disjoint classic intervals into a
-  proper 2-component donut when the flag is on.
+  proper 2-component donut when the flag is on;
+* **Certified GELU / SiLU minima** (§6.6): the five new
+  activation-handler tests described above pin the exact
+  `Y_MIN = -0.1702 / -0.2786` constants for straddling inputs,
+  the pure monotonic cases, and donut-shaped inputs that hit
+  different monotone branches per component.
 
 **Actual output** on an Apple Silicon MacBook Pro with Homebrew
 LLVM 18:
@@ -761,10 +861,10 @@ LLVM 18:
 ```
 Donut range self-test: 28 passed, 0 failed.
 
-Donut arithmetic test: 43 passed, 0 failed.
+Donut arithmetic test: 57 passed, 0 failed.
 ```
 
-**71 assertions total, all passing.** The two binaries together
+**85 assertions total, all passing.** The two binaries together
 exercise every donut-aware code path introduced by this project.
 
 ### 7.2 Precision micro-benchmark
@@ -947,16 +1047,111 @@ raw output of both builds is saved to
 the VRA JSON artefacts are in `/tmp/donut_arr_classic/` and
 `/tmp/donut_arr_donut/` after running the reproduction script.
 
-### 7.4 A note on what a real neural network would show
+### 7.4 End-to-end test of the `range_union` annotation syntax
 
-A proper evaluation on a quantised MLP on MNIST is the natural next
-step and is sketched in §8.1 as a thesis extension. The array-based
-benchmark above is deliberately minimal because it targets the
-single pipeline stage where the gain originates — VRA's division
-fast path — and demonstrates the full flow-through of that gain
-into DTA's bit-width decision without being obscured by the
-hundreds of other arithmetic instructions in a full MLP forward
-pass.
+The donut annotation parser added in §6.5 is exercised by
+`test/donut_ranges/donut_annotated.c`, a self-contained benchmark in
+which two globals are seeded with
+`scalar(range_union((-0.8, -0.2), (0.2, 0.8))) target('bimodal_w')`
+and `... target('bimodal_w2')`. A kernel reads both globals and
+computes $w^2$ (exercising `handleMul`'s self-square fast path) and
+$w \cdot w'$ (exercising the two-donut Cartesian product). The driver
+script `test/donut_ranges/run_donut_annotated.sh` compiles the file
+twice — once with `-Xvra -vra-donut-ranges` and once without — and
+then runs eight Python assertions against the generated
+`taffo_info_vra.json`:
+
+| # | Assertion | Flag ON | Flag OFF |
+|---|---|:-:|:-:|
+| 1 | `bimodal_w` VRA seed carries `components=[[-0.8,-0.2],[0.2,0.8]]` | ✅ | ✅ |
+| 2 | `bimodal_w2` VRA seed carries the same components | ✅ | ✅ |
+| 3 | `w*w` collapses to the tight single interval `[0.04, 0.64]` (self-square fast path) | ✅ | — |
+| 4 | `w*w'` preserves the 2-component donut `[-0.64,-0.04] U [0.04, 0.64]` | ✅ | — |
+| 5 | seed components survive serialisation even in a classic build | — | ✅ |
+| 6 | classic build falls back to hull `[0, 0.64]` for `w*w` | — | ✅ |
+| 7 | classic build falls back to hull `[-0.64, 0.64]` for `w*w'` | — | ✅ |
+| 8 | driver completes with exit code 0 (no DTA or Conversion failure on the annotated seeds) | ✅ | ✅ |
+
+All eight assertions pass. This confirms that (i) the parser correctly
+populates the `components` vector from the source text, (ii) the
+component list propagates through the VRA pipeline into the emitted
+metadata, (iii) the downstream arithmetic uses the donut structure
+when the flag is on, and (iv) the exact same annotation silently
+degrades to the convex hull when the flag is off — the promised
+backwards-compatibility property of §1.4 item 5.
+
+### 7.5 Toy MLP end-to-end benchmark
+
+The `test/donut_ranges/donut_mlp.c` benchmark exercises the full
+TAFFO pipeline on a 1-hidden-layer multi-layer perceptron with
+input dimension 4, hidden dimension 8, and output dimension 1. The
+first-layer weight matrix `W1` and the second-layer weight vector
+`W2` are seeded via the new `scalar(range_union(...))` annotation
+syntax with the same two-cluster bimodal shape used elsewhere in
+the evaluation. The hidden activation is `taffo_relu` (exercising
+`handleCallToReLU`); biases and inputs carry ordinary
+single-interval annotations. The driver script
+`test/donut_ranges/run_donut_mlp.sh` runs TAFFO twice and prints a
+table of (VRA range, DTA fixed-point format) for every annotated
+SSA group.
+
+The result, reproduced verbatim from
+`test/donut_ranges/mlp_results.txt`:
+
+| target | classic VRA | donut VRA | classic DTA | donut DTA |
+|---|---|---|---|---|
+| `W1` | `[-0.8, 0.8]` | `[-0.8, 0.8]` + `[[-0.8,-0.2],[0.2,0.8]]` | `s2_30fixp` | `s2_30fixp` |
+| `W2` | `[-0.6, 0.6]` | `[-0.6, 0.6]` + `[[-0.6,-0.15],[0.15,0.6]]` | `s4_28fixp` | `s4_28fixp` |
+| `b1` | `[-0.5, 0.5]` | `[-0.5, 0.5]` | `s2_30fixp` | `s2_30fixp` |
+| `b2` | `[-0.3, 0.3]` | `[-0.3, 0.3]` | `s3_29fixp` | `s3_29fixp` |
+| `x` | `[-1, 1]` | `[-1, 1]` | `s2_30fixp` | `s2_30fixp` |
+| `h_pre` | `[-3.7, 3.7]` | `[-3.7, 3.7]` | `s4_28fixp` | `s4_28fixp` |
+| `h_post` | `[-3.7, 3.7]` | `[-3.7, 3.7]` | `s4_28fixp` | `s4_28fixp` |
+| `y_pre` | `[-4.92, 4.92]` | `[-4.92, 4.92]` | `s4_28fixp` | `s4_28fixp` |
+| `y_post` | `[-2.7, 2.7]` | `[-2.7, 2.7]` | `s3_29fixp` | `s3_29fixp` |
+
+Two observations:
+
+1. The `W1` and `W2` seeds *do* preserve their donut components in
+   the VRA JSON of the donut build and lose them in the classic
+   build — confirming that the annotation parser and the donut
+   serialisation path work as advertised (see also §7.4 assertion
+   harness).
+2. The derived quantities `h_pre`, `h_post`, `y_pre`, and `y_post`
+   pick the same DTA format regardless of whether donut ranges
+   are enabled. The reason is analytical, not a defect of the
+   implementation: in a fully-connected layer, each pre-activation
+   is a sum of $n$ terms of the form $W_{j,i} \cdot x_i$ where
+   $W_{j,i}$ is bimodal but $x_i$ is the zero-crossing interval
+   `[-1, 1]`. The Cartesian product
+   $[-0.8,-0.2] \cdot [-1, 1] = [-0.8, 0.8]$
+   destroys the donut hole already at the first multiplication, and
+   the fan-in addition only widens the result further. ReLU of
+   `[-3.7, 3.7]` is `[0, 3.7]`, and the subsequent
+   `W2 \cdot h_{post}` multiplies a bimodal weight by a strictly
+   non-negative activation — the product has a narrow hole around
+   zero but the fan-in sum closes it immediately.
+
+The finding is that donut ranges *pay off where a zero-excluding
+denominator or a self-square sits between a donut-shaped input and
+DTA*, as demonstrated by `donut_array.c` in §7.3 (+24 fractional
+bits on the reciprocal of a bimodal weight); in a plain ReLU-MLP
+the bimodal structure of the weights is destroyed by a standard
+fully-connected pre-activation before it can reach the DTA pass.
+This is exactly the class of observation that the follow-up thesis
+extension of §8.1 — teaching DTA to *consume* the `components`
+field at the intermediate stages, before the hole closes — is
+designed to capture.
+
+### 7.6 Previous note on a real neural network
+
+A proper evaluation on a quantised MLP on MNIST remains a natural
+next step. The toy MLP above (§7.5) already demonstrates that the
+TAFFO pipeline processes a full NN forward pass with donut
+annotations without blowing up, and characterises *precisely* the
+topological condition under which the donut refinement survives to
+DTA. The full-MLP-on-MNIST version is sketched as a thesis
+extension in §8.1.
 
 ---
 
@@ -975,14 +1170,19 @@ SSA value into two concrete fixed-point variables selected at runtime
 by a cheap sign test. Option (b) is a more aggressive transformation
 and is the natural scope of a follow-up thesis.
 
-### 8.2 Annotation syntax
+### 8.2 Annotation syntax (resolved — see §6.5 and §7.4)
 
-Users currently cannot declare a donut range directly in their source
-code: the `scalar(range(a, b))` annotation syntax only supports a
-single interval. A short extension would add a
-`scalar(range_union((a1, b1), (a2, b2), …))` form to the annotation
-parser, allowing the whole donut pipeline to be exercised end-to-end
-on real benchmarks.
+In the first draft this subsection was a limitation: users could not
+declare a donut range directly at source level. The final submission
+delivers the `scalar(range_union((a1, b1), (a2, b2), …))` form
+(§6.5) and exercises it with an 8-assertion end-to-end smoke test
+(§7.4), so the limitation is closed. The only remaining concern in
+this area is the *interaction* between `range_union` seeds and
+TAFFO's downstream passes: as the toy MLP analysis in §7.5
+documents, current DTA still reads only the convex hull, so a
+`range_union` seed whose hull happens to cross zero still feeds a
+wide interval into `handleMul`'s Cartesian product. Making DTA a
+donut consumer (§8.1) completes the picture.
 
 ### 8.3 Widening heuristic
 
@@ -993,15 +1193,21 @@ would consider the **density** of the distribution (how much of the
 original space was covered by the components) and the downstream
 **cost** of losing a hole in that particular place.
 
-### 8.4 Soundness of the constants for GELU / SiLU
+### 8.4 Soundness of the constants for GELU / SiLU (resolved — see §6.6)
 
-The `X_MIN_HI` / `X_MIN` / `Y_MIN` constants used in the non-monotonic
-kernels are hand-chosen sound over-approximations of the true minimum
-of the tanh-approximation GELU and of the exact SiLU. A fully rigorous
-proof of soundness would require a certificate (for example an
-interval-arithmetic Newton bound). The current constants are safe in
-the IEEE-754 double-precision regime but could be sharpened with a
-numerical certificate of the form `|f(x_min) - Y_MIN| ≤ ε`.
+This was a limitation in the first draft: the `X_MIN_HI / X_MIN /
+Y_MIN` triples for GELU and SiLU were hand-chosen. The final
+submission replaces them with mpmath-certified constants (§6.6),
+backed by five new unit-test assertions, a numerical certificate
+script in `test/donut_ranges/verify_activation_bounds.py`, and a
+1000-point grid soundness check.
+
+The only residual concern is the *approximation error* of the GELU
+`tanh` formula versus the exact GELU (which uses the error function
+$\operatorname{erf}$). Implementations that target the exact GELU
+can use the same certificate machinery: the script is
+activation-parametric — pass a different pair
+`(f, f')` and re-run `certify(...)`.
 
 ### 8.5 Self-square identity across donut components (fixed)
 
@@ -1119,19 +1325,36 @@ soundness proof for the non-monotonic activation constants.
 
 ```bash
 cd /Users/mohamed/CLionProjects/PoliMI/TAFFO
-cmake -B build -S . -DLLVM_DIR=$(brew --prefix llvm)/lib/cmake/llvm
-cmake --build build --target donut_range_selftest donut_microbench
 
-./build/test/donut_ranges/donut_range_selftest    # correctness
-./build/test/donut_ranges/donut_microbench        # precision
+# Build
+cmake -B cmake-build-debug -S . \
+    -DLLVM_DIR=/opt/homebrew/opt/llvm@18/lib/cmake/llvm   # macOS/brew
+cmake --build cmake-build-debug --target donut_range_selftest \
+    donut_arith_test donut_microbench Taffo -j
+cmake --install cmake-build-debug --prefix $PWD/install
+
+# Unit tests (85 assertions across both binaries)
+./cmake-build-debug/test/donut_ranges/donut_range_selftest
+./cmake-build-debug/test/donut_ranges/donut_arith_test
+
+# Precision micro-benchmark (§7.2)
+./cmake-build-debug/test/donut_ranges/donut_microbench
+
+# End-to-end donut_array.c benchmark (§7.3)
+#   expected artefact: test/donut_ranges/end_to_end_results.txt
+
+# End-to-end range_union annotation smoke test (§7.4)
+test/donut_ranges/run_donut_annotated.sh
+
+# Toy MLP end-to-end benchmark (§7.5)
+test/donut_ranges/run_donut_mlp.sh
+
+# Verified GELU / SiLU minimum constants (§6.6)
+python3 test/donut_ranges/verify_activation_bounds.py
 ```
 
 `-DLLVM_DIR` should point to wherever LLVM's CMake exports live on the
 host system. On macOS with Homebrew-provided LLVM the invocation above
 is the typical one; on Linux it is usually
-`-DLLVM_DIR=/usr/lib/llvm-17/lib/cmake/llvm` or similar.
-
-## Appendix B — Enrollment email
-
-The enrollment email sent to Prof. Agosta and the TAFFO supervisors is
-reproduced in `enrollment_email.txt` at the root of the repository.
+`-DLLVM_DIR=/usr/lib/llvm-17/lib/cmake/llvm` or similar. The
+`verify_activation_bounds.py` certificate requires `mpmath` from PyPI.

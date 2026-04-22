@@ -1,5 +1,5 @@
 From: Mohamed Z. M. Mandour <mohamedzeyad.mandour@mail.polimi.it>
-To:   giovanni.agosta@polimi.it          [VERIFY ADDRESS ON POLIMI RUBRICA]
+To:   giovanni.agosta@polimi.it
 Cc:   niccolo.nicolosi@polimi.it
 Cc:   gabriele.magnani@polimi.it
 Subject: CTO A.Y. 2025/26 - Project enrollment: TAFFO (Donut Ranges in VRA + Activation Function Range Models)
@@ -70,14 +70,33 @@ a single coherent contribution to TAFFO's handling of neural networks.
 
 ### Logistics
 
-I will be working on this project individually. I have already cloned
-the TAFFO repository, set up a local build environment, and started
-reading the VRA pass to orient myself.
+I will be working on this project individually. I have cloned the
+TAFFO repository, set up a local build, and put together a working
+prototype of both sub-projects that I would be happy to walk through
+during the briefing. In particular, it already includes:
 
-Could we schedule a short briefing at your convenience, so that you
-can confirm whether this combined scope is acceptable and give me any
-pointers (priorities, pitfalls, existing WIP branches, reference
-benchmarks) that would help me start on the right foot?
+  * the donut-range data structure on top of `taffo::Range`, with
+    piecewise arithmetic and canonicalisation (sub-project #1 core),
+  * closed-form range handlers for sigmoid, ReLU, leaky ReLU, ELU,
+    softplus, GELU and SiLU (sub-project #3 core),
+  * an opt-in `-vra-donut-ranges` flag so existing TAFFO users see
+    zero behavioural change,
+  * a new `scalar(range_union((a1,b1),(a2,b2),...))` annotation
+    syntax so users can declare donut ranges directly at source level,
+  * a 60-digit `mpmath` certificate for the non-monotonic activation
+    minima (GELU, SiLU),
+  * 85 passing unit-test assertions, a 5-kernel precision
+    micro-benchmark, and two end-to-end benchmarks driven through the
+    full TAFFO driver (a bimodal-array reciprocal that demonstrates a
+    24-bit fractional-precision gain, and a toy 1-hidden-layer MLP
+    that exercises the full pipeline on NN-shaped annotated code),
+  * a LaTeX report (`doc/report.pdf`) covering motivation, formalism,
+    implementation, evaluation and directions for a thesis extension.
+
+Could we schedule a short briefing at your convenience so that you
+can confirm whether the combined scope is acceptable, review the
+prototype, and give me any pointers (priorities, pitfalls, reference
+benchmarks) that would sharpen the final submission?
 
 Thank you very much in advance for your time.
 
@@ -90,11 +109,14 @@ Politecnico di Milano
 
 --
 NOTES (remove before sending):
-  * Verify Prof. Agosta's email address on the PoliMI rubrica before
-    sending. The PoliMI convention is firstname.lastname@polimi.it,
-    but double-check his staff page.
-  * The email is written in English. If you prefer Italian, I can
-    translate it - just ask.
-  * If you'd rather pick only ONE of the two sub-projects (simpler
-    scope, lower 30L odds), let me know and I'll rewrite the email
-    for a single sub-project.
+  * Prof. Agosta's address follows the PoliMI convention
+    firstname.lastname@polimi.it. A final sanity check on the
+    rubrica (https://rubrica.polimi.it) before hitting Send is
+    always a good idea.
+  * The email is in English. An Italian translation is easy if
+    preferred.
+  * The prototype described above is in the master branch of the
+    local clone at
+    /Users/mohamed/CLionProjects/PoliMI/TAFFO, in commits on top
+    of upstream master. It is not yet pushed; push before the
+    briefing so the supervisors can fetch it.
