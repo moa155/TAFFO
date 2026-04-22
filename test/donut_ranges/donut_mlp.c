@@ -64,8 +64,13 @@ double __attribute__((annotate(
    0.5, -0.4,  0.3, -0.6,  0.4, -0.3,  0.5, -0.2
 };
 
+// NOTE: b2 is a scalar, not a 1-element array, because TAFFO's
+// Conversion pass currently emits an illegal aggregate-typed `ashr`
+// instruction when an annotated 1-element array is loaded whole
+// (rather than through a GEP). Using the scalar avoids the corner case
+// entirely; a single-output MLP does not need an array-valued bias.
 double __attribute__((annotate("scalar(range(-0.3, 0.3)) target('b2')")))
-    b2[OUT_DIM] = { 0.05 };
+    b2 = 0.05;
 
 // Relay through a runtime barrier to stop the optimiser from folding
 // the whole network to a constant.
@@ -112,7 +117,7 @@ double donut_mlp_kernel(
 
   // Output layer — one more weighted sum, then ReLU.
   double __attribute__((annotate("scalar() target('y_pre')")))
-      y_pre = b2[0];
+      y_pre = b2;
   for (int j = 0; j < HIDDEN_DIM; ++j) {
     y_pre += W2[j] * h_post[j];
   }

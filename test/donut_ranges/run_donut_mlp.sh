@@ -15,9 +15,10 @@
 #     behave identically, just without the donut refinement getting
 #     to propagate in this particular topology.
 #
-# TAFFO's Conversion pass has a pre-existing crash on this input (not
-# related to donut ranges); the script therefore only consumes the
-# VRA and DTA JSON artefacts, both of which complete successfully.
+# The full pipeline completes end-to-end (taffotmp.s is produced by
+# both builds) after the Conversion-pass fixes landed with this
+# project (convertStore insertionPoint + float-source defensive
+# routing in genConvertConvToConv).
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
