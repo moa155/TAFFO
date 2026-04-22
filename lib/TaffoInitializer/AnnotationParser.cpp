@@ -132,7 +132,55 @@ bool AnnotationParser::parseScalar(std::shared_ptr<ValueInfo>& thisValueInfo) {
   thisValueInfo.reset(scalarInfo);
 
   while (!peek(")")) {
-    if (peek("range")) {
+    // NOTE: order matters. `peek` is prefix-based, so we must test the
+    // longer identifier `range_union` before the shorter `range`.
+    if (peek("range_union")) {
+      // Donut-shaped input seed: a union of 2..kMaxComponents disjoint
+      // closed intervals. Syntax:
+      //     range_union((a1,b1), (a2,b2), ..., (aN,bN))
+      // The components vector is populated directly (bypassing the
+      // enableDonut flag of addComponent) so that the seeded Range
+      // carries the hole information regardless of whether the VRA pass
+      // is run with -vra-donut-ranges on. With the flag off, downstream
+      // VRA simply ignores `components` and uses the convex hull, which
+      // this parser still sets via rebuildHullFromComponents().
+      scalarInfo->range = std::make_shared<Range>();
+      Range& R = *scalarInfo->range;
+      if (!expect("("))
+        return false;
+      bool firstComp = true;
+      while (!peek(")")) {
+        if (!firstComp) {
+          if (!expect(","))
+            return false;
+        }
+        firstComp = false;
+        if (!expect("("))
+          return false;
+        double lo, hi;
+        if (!expectReal(lo))
+          return false;
+        if (!expect(","))
+          return false;
+        if (!expectReal(hi))
+          return false;
+        if (!expect(")"))
+          return false;
+        if (lo > hi) std::swap(lo, hi);
+        R.components.emplace_back(lo, hi);
+      }
+      if (R.components.empty()) {
+        error = "range_union requires at least one (lo,hi) component";
+        return false;
+      }
+      R.canonicalize();
+      // canonicalize() collapses a 1-component donut to a plain
+      // interval, so after this point R is either a classic Range or a
+      // donut with 2..kMaxComponents components. Either way the hull is
+      // set and the APFloat shadows are in sync.
+      R.rebuildHullFromComponents();
+    }
+    else if (peek("range")) {
       scalarInfo->range = std::make_shared<Range>();
       if (!expect("("))
         return false;
